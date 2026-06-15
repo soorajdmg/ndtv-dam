@@ -27,7 +27,16 @@ for _p in [str(_backend_root), "/app"]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Load models so Alembic can auto-detect schema changes
-from app.models import Base  # noqa: F401  (must come after sys.path fix)
+try:
+    from app.models import Base  # noqa: F401  (must come after sys.path fix)
+except Exception as _e:
+    import traceback
+    sys.stderr.write("\n\n=== REAL IMPORT ERROR ===\n")
+    sys.stderr.write(f"sys.path: {sys.path}\n")
+    traceback.print_exc(file=sys.stderr)
+    sys.stderr.write("=========================\n\n")
+    sys.stderr.flush()
+    raise
 
 config = context.config
 
