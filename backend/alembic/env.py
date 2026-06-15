@@ -1,12 +1,33 @@
 import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import engine_from_config, pool
-
 from alembic import context
 
-# Load models so Alembic can auto-detect them
-from app.models import Base  # noqa: F401
+# ── sys.path fix ──────────────────────────────────────────────────────────────
+# Alembic runs from various working directories depending on the environment
+# (Docker container, Render native build, local dev). We must ensure that the
+# directory containing the `app` package is always on sys.path before importing
+# any app.* module.
+#
+# Directory layout (both local and in Docker):
+#   <backend_root>/
+#       alembic/          ← this file lives here
+#       alembic.ini
+#       app/              ← the package we need to import
+#
+# So the backend root is always one level above this file's directory.
+_here = Path(__file__).resolve().parent          # .../backend/alembic/
+_backend_root = _here.parent                      # .../backend/
+for _p in [str(_backend_root), "/app"]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Load models so Alembic can auto-detect schema changes
+from app.models import Base  # noqa: F401  (must come after sys.path fix)
 
 config = context.config
 
