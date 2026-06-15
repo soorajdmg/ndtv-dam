@@ -31,6 +31,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY backend/ .
 
+# Make the app package importable without pip install (no pyproject.toml install step).
+ENV PYTHONPATH=/app
+
 # Temp dir for any local file ops (R2 materialisations, etc.)
 RUN mkdir -p /tmp/dam_variants /tmp/dam_clips /tmp/dam_faces
 
