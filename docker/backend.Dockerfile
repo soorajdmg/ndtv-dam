@@ -31,14 +31,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY backend/ .
 
-# Make the app package importable without pip install (no pyproject.toml install step).
-ENV PYTHONPATH=/app
+# Install the app package itself so `import app` always works,
+# regardless of PYTHONPATH or working directory.
+RUN pip install --no-cache-dir -e .
 
 # Temp dir for any local file ops (R2 materialisations, etc.)
 RUN mkdir -p /tmp/dam_variants /tmp/dam_clips /tmp/dam_faces
 
 EXPOSE 8000
 
-# Run Alembic migrations then start the API server.
-# On Render you can also set this as a Pre-Deploy Command instead.
-CMD ["sh", "-c", "export PYTHONPATH=/app && cd /app && python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]
+CMD ["sh", "-c", "python -m alembic -c /app/alembic.ini upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]
