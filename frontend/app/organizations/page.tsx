@@ -1,0 +1,219 @@
+"use client";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Building2, ChevronRight, ChevronDown, Users, Plus, X } from "lucide-react";
+import Link from "next/link";
+import toast from "react-hot-toast";
+import { listOrganizations, createOrganization, listPersons } from "@/lib/api";
+import type { Organization } from "@/lib/types";
+
+function PersonsInOrg({ orgName }: { orgName: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["persons-by-org", orgName],
+    queryFn: () => listPersons({ organization: orgName, page_size: 100 }),
+  });
+  const persons = data?.items ?? [];
+
+  if (isLoading) return <p className="text-xs text-gray-500 mt-1 ml-5">Loading...</p>;
+  if (persons.length === 0) return <p className="text-xs text-gray-500 mt-1 ml-5">No persons linked</p>;
+  return (
+    <div className="mt-2 ml-5 flex flex-wrap gap-2">
+      {persons.map((p) => (
+        <Link
+          key={p.id}
+          href={`/persons/${p.id}`}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-surface-border text-xs text-gray-300 hover:text-white hover:border-brand-gold/40 transition-colors"
+        >
+          <Users className="w-3 h-3 text-brand-gold" />
+          {p.full_name}
+          {p.designation && <span className="text-gray-500">· {p.designation}</span>}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function OrgNode({ org, allOrgs, depth = 0 }: { org: Organization; allOrgs: Organization[]; depth?: number }) {
+  const [expanded, setExpanded] = useState(depth < 1);
+  const [showPersons, setShowPersons] = useState(false);
+  const children = allOrgs.filter((o) => o.parent_organization_id === org.id);
+
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-hover transition-colors ${depth === 0 ? "mt-1" : ""}`}
+        style={{ paddingLeft: `${12 + depth * 20}px` }}
+      >
+        <button
+          onClick={() => children.length && setExpanded(!expanded)}
+          className="shrink-0"
+        >
+          {children.length > 0 ? (
+            expanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />
+          ) : (
+            <span className="w-3 h-3 block" />
+          )}
+        </button>
+        <Building2 className="w-4 h-4 text-brand-gold shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-white">{org.name}</p>
+          {org.entity_type && <p className="text-xs text-gray-400">{org.entity_type}</p>}
+        </div>
+        <button
+          onClick={() => setShowPersons(!showPersons)}
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-400 hover:text-white hover:bg-surface border border-transparent hover:border-surface-border transition-colors shrink-0"
+        >
+          <Users className="w-3 h-3" />
+          {showPersons ? "Hide" : "Persons"}
+        </button>
+      </div>
+      {showPersons && <PersonsInOrg orgName={org.name} />}
+      {expanded && children.map((child) => (
+        <OrgNode key={child.id} org={child} allOrgs={allOrgs} depth={depth + 1} />
+      ))}
+    </div>
+  );
+}
+
+function CreateOrgForm({ orgs, onClose }: { orgs: Organization[]; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ name: "", entity_type: "", parent_organization_id: "" });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return toast.error("Name is required");
+    setSaving(true);
+    try {
+      await createOrganization({
+        name: form.name.trim(),
+        entity_type: form.entity_type || undefined,
+        parent_organization_id: form.parent_organization_id || undefined,
+      });
+      toast.success(`Organization "${form.name}" created`);
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create organization");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-brand-gold/30 bg-surface-card p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">New Organization</h2>
+        <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-400 mb-1">Name *</label>
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="e.g. Ministry of Finance"
+            required
+            className="w-full px-3 py-2 rounded-lg bg-surface border border-surface-border text-white text-sm placeholder-gray-500 focus:outline-none focus:border-brand-gold/50"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-400 mb-1">Entity Type</label>
+          <input
+            type="text"
+            value={form.entity_type}
+            onChange={(e) => setForm({ ...form, entity_type: e.target.value })}
+            placeholder="e.g. Government Ministry, Political Party, Corporation"
+            className="w-full px-3 py-2 rounded-lg bg-surface border border-surface-border text-white text-sm placeholder-gray-500 focus:outline-none focus:border-brand-gold/50"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-400 mb-1">Parent Organization</label>
+          <select
+            value={form.parent_organization_id}
+            onChange={(e) => setForm({ ...form, parent_organization_id: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg bg-surface border border-surface-border text-white text-sm focus:outline-none focus:border-brand-gold/50"
+          >
+            <option value="">None (top-level)</option>
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2 rounded-lg bg-brand-gold hover:bg-brand-gold-light text-brand-navy font-semibold text-sm disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Creating..." : "Create"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 rounded-lg border border-surface-border text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default function OrganizationsPage() {
+  const [showCreate, setShowCreate] = useState(false);
+
+  const { data: orgs = [], isLoading } = useQuery({
+    queryKey: ["organizations"],
+    queryFn: listOrganizations,
+  });
+
+  const roots = orgs.filter((o) => !o.parent_organization_id);
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Organizations</h1>
+          <p className="text-gray-400 text-sm mt-1">{orgs.length} organizations</p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-gold text-brand-navy font-semibold text-sm hover:bg-brand-gold-light transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          New Organization
+        </button>
+      </div>
+
+      {showCreate && (
+        <CreateOrgForm orgs={orgs} onClose={() => setShowCreate(false)} />
+      )}
+
+      {isLoading ? (
+        <div className="text-gray-400 text-sm">Loading...</div>
+      ) : orgs.length === 0 ? (
+        <div className="text-center py-20 text-gray-500">
+          <Building2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p>No organizations yet.</p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="text-brand-gold hover:underline mt-2 text-sm"
+          >
+            Create the first one
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-surface-border bg-surface-card p-4">
+          {roots.map((root) => (
+            <OrgNode key={root.id} org={root} allOrgs={orgs} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

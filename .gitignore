@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.env
+*.env.local
+
+# Model weights & caches
+*.onnx
+*.onnx.weights
+*.pt
+*.pth
+~/.insightface/
+.cache/
+models/
+
+# Upload data
+/data/
+uploads/
+
+# Qdrant volumes
+qdrant_storage/
+
+# Node.js
+node_modules/
+.next/
+out/
+.npm/
+
+# Frontend env
+frontend/.env.local
+frontend/.env*.local
+
+# Production secrets — NEVER commit these
+.env.production
+backend/.env.production
+frontend/.env.production
+backend/.env.local-worker
+*.env.production
+*.env.local-worker
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Docker
+.docker/
+
+# Alembic
+alembic/versions/__pycache__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
