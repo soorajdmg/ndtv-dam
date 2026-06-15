@@ -41,5 +41,4 @@ EXPOSE 8000
 
 # Run Alembic migrations then start the API server.
 # On Render you can also set this as a Pre-Deploy Command instead.
-CMD alembic upgrade head && \
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+CMD ["sh", "-c", "cd /app && PYTHONPATH=/app alembic upgrade head && PYTHONPATH=/app uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]
