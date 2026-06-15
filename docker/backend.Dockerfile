@@ -31,9 +31,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY backend/ .
 
-# Install the app package itself so `import app` always works,
-# regardless of PYTHONPATH or working directory.
-RUN pip install --no-cache-dir -e .
+# Register /app permanently in Python's path via a .pth file.
+# This means `import app` works from any working directory with no
+# PYTHONPATH tricks needed — and without installing pyproject.toml
+# (which would pull in torch/insightface/ML packages we don't want here).
+RUN echo "/app" > "$(python -c 'import site; print(site.getsitepackages()[0])')/ndtv_dam.pth"
 
 # Temp dir for any local file ops (R2 materialisations, etc.)
 RUN mkdir -p /tmp/dam_variants /tmp/dam_clips /tmp/dam_faces
