@@ -9,7 +9,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
-# Minimal system deps for Pillow, imagehash, psycopg2
+# Minimal runtime libs — no build tools needed (no native ML extensions).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libsm6 \
@@ -22,11 +22,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python dependencies.
+# Install API-only dependencies (no torch/insightface/CLIP — keeps image small).
 # COPY from repo root (Render sets build context to ".").
-COPY backend/pyproject.toml ./
-RUN pip install --no-cache-dir --upgrade pip "setuptools>=68" wheel && \
-    pip install --no-cache-dir "."
+COPY backend/requirements-api.txt ./
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-api.txt
 
 # Copy application code
 COPY backend/ .

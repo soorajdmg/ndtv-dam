@@ -67,6 +67,19 @@ Sign up and collect credentials from each service. You will need these before an
 
 ## Section 2 — Code Changes (Phased)
 
+### Phase 0 — Split Dependencies (API vs Worker) ✅ DONE
+
+**Goal:** The `backend.Dockerfile` (Render) must not install ML packages (torch, insightface, CLIP, rembg). They are ~1 GB and require C++ compilers that `python:3.11-slim` doesn't have, causing build failures.
+
+- [x] `backend/requirements-api.txt` — created with API-only packages (FastAPI, SQLAlchemy, Celery client, Qdrant client, Pillow, boto3, etc.)
+- [x] `docker/backend.Dockerfile` — changed to `pip install -r requirements-api.txt` instead of `pip install "."` from pyproject.toml
+- [x] `docker/worker.Dockerfile` — unchanged, still uses `pyproject.toml` with all ML deps (runs locally)
+
+**Packages excluded from Render image:**
+`torch`, `torchvision`, `insightface`, `onnxruntime`, `open-clip-torch`, `transformers`, `kornia`, `timm`, `einops`, `opencv-python-headless`, `numpy`, `rembg`, `flower`, `python-jose`, `passlib`
+
+---
+
 ### Phase 1 — Add S3/R2 File Storage Support
 
 **Goal:** Replace all local `/data/uploads/` filesystem references with Cloudflare R2 (S3-compatible).
@@ -462,9 +475,9 @@ The Phase 3 task creates `backend/.env.production` with real credentials. If `.g
 | C5 | Logo path `/assets/ndtv_profit_logo.png` won't exist on Render | CRITICAL | Phase 1 |
 | C6 | CORS will block Vercel frontend from calling Render backend | CRITICAL | Phase 3 |
 | C7 | `next.config.js` images blocked — only localhost allowed | CRITICAL | Phase 6 |
-| H1 | ML model warmup on Render will OOM crash the API | HIGH | Phase 2 |
-| H2 | `rembg` fallback not in dependencies | HIGH | Phase 1 |
-| H3 | HuggingFace model downloads timeout on first Render boot | HIGH | Docker |
+| H1 | ML model warmup on Render will OOM crash the API | ~~HIGH~~ | ~~Phase 2~~ — Fixed by Phase 0 (ML packages not installed on Render) |
+| H2 | `rembg` fallback not in dependencies | ~~HIGH~~ | ~~Phase 1~~ — Fixed by Phase 0 (rembg excluded from Render image; present in pyproject.toml for worker) |
+| H3 | HuggingFace model downloads timeout on first Render boot | ~~HIGH~~ | ~~Docker~~ — Fixed by Phase 0 (ML not installed on Render) |
 | H4 | Alembic migrations won't run automatically on deploy | HIGH | Section 1.5 |
 | H5 | DB connection pool exhaustion on Neon free tier | HIGH | Phase 3 |
 | H6 | Celery Beat loses schedule state on restart | HIGH | Local only |
