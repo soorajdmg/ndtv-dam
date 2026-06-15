@@ -4,39 +4,25 @@ from logging.config import fileConfig
 from pathlib import Path
 
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.orm import DeclarativeBase
 from alembic import context
 
 # ── sys.path fix ──────────────────────────────────────────────────────────────
-# Alembic runs from various working directories depending on the environment
-# (Docker container, Render native build, local dev). We must ensure that the
-# directory containing the `app` package is always on sys.path before importing
-# any app.* module.
-#
-# Directory layout (both local and in Docker):
-#   <backend_root>/
-#       alembic/          ← this file lives here
-#       alembic.ini
-#       app/              ← the package we need to import
-#
-# So the backend root is always one level above this file's directory.
-_here = Path(__file__).resolve().parent          # .../backend/alembic/
-_backend_root = _here.parent                      # .../backend/
+_here = Path(__file__).resolve().parent   # .../alembic/
+_backend_root = _here.parent              # .../  (contains app/)
 for _p in [str(_backend_root), "/app"]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Load models so Alembic can auto-detect schema changes
-try:
-    from app.models import Base  # noqa: F401  (must come after sys.path fix)
-except Exception as _e:
-    import traceback
-    sys.stderr.write("\n\n=== REAL IMPORT ERROR ===\n")
-    sys.stderr.write(f"sys.path: {sys.path}\n")
-    traceback.print_exc(file=sys.stderr)
-    sys.stderr.write("=========================\n\n")
-    sys.stderr.flush()
-    raise
+# Define a standalone Base purely for Alembic metadata.
+# We do NOT import app.models here — those imports drag in pydantic-settings,
+# sqlalchemy async engine creation, and other runtime deps that can fail in the
+# build/migration environment. The individual migration scripts (versions/*.py)
+# define the schema directly via op.create_table(), so Alembic does NOT need
+# the ORM models to run existing migrations. target_metadata=None is correct
+# for a migrations-only (non-autogenerate) workflow.
+target_metadata = None
 
 config = context.config
 
@@ -48,8 +34,6 @@ config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-
-target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
