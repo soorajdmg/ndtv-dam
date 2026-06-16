@@ -90,23 +90,31 @@ async def semantic_search(
             select(Image)
             .join(ClipEmbedding, ClipEmbedding.image_id == Image.id)
             .where(cast(ClipEmbedding.semantic_tags, Text).ilike(f"%{q}%"))
+            .distinct()
         )
 
-        # 2. Images linked to a person matching name, alias, designation, or organisation
-        by_person = (
-            select(Image)
-            .join(ImagePersonLink, ImagePersonLink.image_id == Image.id)
-            .join(Person, Person.id == ImagePersonLink.person_id)
-            .where(or_(
+        # 2. First find all persons matching name / designation / organisation / category,
+        #    then return ALL images those persons appear in (not just images where the
+        #    matched person's attribute happens to match — ensures complete coverage).
+        matched_persons_result = await db.execute(
+            select(Person.id).where(or_(
                 Person.full_name.ilike(f"%{q}%"),
                 Person.designation.ilike(f"%{q}%"),
                 Person.organization.ilike(f"%{q}%"),
                 Person.category.ilike(f"%{q}%"),
             ))
         )
+        matched_person_ids = [row[0] for row in matched_persons_result.all()]
+
+        by_person = (
+            select(Image)
+            .join(ImagePersonLink, ImagePersonLink.image_id == Image.id)
+            .where(ImagePersonLink.person_id.in_(matched_person_ids))
+            .distinct()
+        ) if matched_person_ids else None
 
         # 3. Images whose filename contains the query
-        by_filename = select(Image).where(Image.original_filename.ilike(f"%{q}%"))
+        by_filename = select(Image).where(Image.original_filename.ilike(f"%{q}%")).distinct()
 
         async def _enrich(img: Image) -> SearchResultItem:
             qs_res = await db.execute(
@@ -131,6 +139,8 @@ async def semantic_search(
             )
 
         for subq in (by_tags, by_person, by_filename):
+            if subq is None:
+                continue
             try:
                 fb_result = await db.execute(subq.limit(request.top_k))
                 for img in fb_result.scalars().all():
