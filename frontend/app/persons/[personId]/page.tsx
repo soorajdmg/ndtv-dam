@@ -16,7 +16,7 @@ export default function PersonDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<{ detection_confidence: number; faces_detected: number } | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ queued: boolean } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [editing, setEditing] = useState(false);
@@ -52,8 +52,8 @@ export default function PersonDetailPage() {
       const res = await fetch(`${apiBase}/api/persons/${personId}/reference-photo`, { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.detail ?? "Upload failed");
-      const result = json as { message: string; person_id: string; detection_confidence: number; faces_detected: number };
-      setUploadResult({ detection_confidence: result.detection_confidence, faces_detected: result.faces_detected });
+      // API now returns task_id (async processing) instead of immediate results
+      setUploadResult({ queued: true });
       queryClient.invalidateQueries({ queryKey: ["person", personId] });
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
@@ -331,8 +331,8 @@ export default function PersonDetailPage() {
           <div className="flex items-start gap-2 rounded-lg border border-green-700/40 bg-green-900/20 p-3">
             <CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
             <div className="text-xs text-green-300 space-y-0.5">
-              <p className="font-medium">Reference photo saved successfully.</p>
-              <p className="text-green-400/80">Confidence: {(uploadResult.detection_confidence * 100).toFixed(1)}% · Faces detected: {uploadResult.faces_detected}</p>
+              <p className="font-medium">Reference photo queued for processing.</p>
+              <p className="text-green-400/80">Face detection is running in the background — the embedding will be ready in a few seconds.</p>
             </div>
           </div>
         )}
