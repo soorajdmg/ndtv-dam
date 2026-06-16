@@ -1,34 +1,31 @@
-# ──────────────────────────────────────────────────────────────────────────────
-# API-only dependencies — used by the Render deployment (backend.Dockerfile).
-#
-# Does NOT include ML packages (torch, insightface, CLIP, rembg, etc.).
-# Those are installed via pyproject.toml in the local worker.Dockerfile.
-# ──────────────────────────────────────────────────────────────────────────────
+# API-only dependencies — no ML packages (torch, insightface, CLIP, BiRefNet).
+# Installed in the Render Docker image (docker/backend.Dockerfile).
 
 # Web framework
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
 python-multipart==0.0.9
 
-# Database
+# Database — asyncpg is required for async SQLAlchemy
 sqlalchemy[asyncio]==2.0.30
 alembic==1.13.1
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
 
-# Task queue (Celery client — needed to enqueue jobs from the API)
+# Task queue (API only enqueues tasks, doesn't run them)
 celery[redis]==5.4.0
 redis==5.0.4
 
 # Vector store
 qdrant-client==1.9.1
 
-# Image processing (used in upload_router, asset_router, review_router)
+# Cloud storage
+boto3==1.34.131
+
+# Image processing (needed for upload validation + thumbnails)
 Pillow==10.3.0
 imagehash==4.3.1
-
-# Cloud storage (Cloudflare R2 / AWS S3-compatible)
-boto3==1.34.131
+numpy==1.26.4
 
 # Configuration & validation
 pydantic==2.7.1
@@ -40,8 +37,12 @@ structlog==24.2.0
 # HTTP client
 httpx==0.27.0
 
-# Utilities
+# File I/O
 aiofiles==23.2.1
 
 # Monitoring
 prometheus-fastapi-instrumentator==7.0.0
+
+# Auth utilities
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
