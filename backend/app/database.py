@@ -23,13 +23,29 @@ def _get_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
+        # Ensure the URL uses the asyncpg driver.
+        # Neon and some other providers give plain postgresql:// or postgres:// URLs.
+        url = settings.database_url
+        for sync_prefix in ("postgresql://", "postgres://"):
+            if url.startswith(sync_prefix):
+                url = "postgresql+asyncpg://" + url[len(sync_prefix):]
+                break
+
+        # asyncpg does not accept ?sslmode=require as a query param.
+        # Strip it and pass ssl=True via connect_args instead.
+        ssl_required = "sslmode=require" in url
+        url = url.replace("?sslmode=require", "").replace("&sslmode=require", "")
+
+        connect_args = {"ssl": True} if ssl_required else {}
+
         _engine = create_async_engine(
-            settings.database_url,
+            url,
             echo=False,
             # Keep pool small for Neon free tier (~20 max connections shared with Celery workers)
             pool_size=3,
             max_overflow=5,
             pool_pre_ping=True,
+            connect_args=connect_args,
         )
     return _engine
 
