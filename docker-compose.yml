@@ -45,8 +45,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: ../docker/backend.Dockerfile
+      context: .
+      dockerfile: docker/backend.Dockerfile
     container_name: ndtv_dam_backend
     env_file: .env
     ports:
@@ -66,8 +66,8 @@ services:
 
   celery_worker:
     build:
-      context: ./backend
-      dockerfile: ../docker/backend.Dockerfile
+      context: .
+      dockerfile: docker/backend.Dockerfile
     container_name: ndtv_dam_celery
     command: celery -A app.worker worker --loglevel=info -Q ingest,face,embedding,variant,quality -c 4
     env_file: .env
@@ -84,8 +84,8 @@ services:
 
   celery_beat:
     build:
-      context: ./backend
-      dockerfile: ../docker/backend.Dockerfile
+      context: .
+      dockerfile: docker/backend.Dockerfile
     container_name: ndtv_dam_celery_beat
     command: celery -A app.worker beat --loglevel=info --scheduler celery.beat:PersistentScheduler
     env_file: .env
@@ -97,8 +97,8 @@ services:
 
   flower:
     build:
-      context: ./backend
-      dockerfile: ../docker/backend.Dockerfile
+      context: .
+      dockerfile: docker/backend.Dockerfile
     container_name: ndtv_dam_flower
     command: celery -A app.worker flower --port=5555
     env_file: .env
