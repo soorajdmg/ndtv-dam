@@ -92,6 +92,7 @@ export interface ImageMetadata {
 export interface BatchImage {
   id: string;
   original_filename: string;
+  storage_path?: string;
   width?: number;
   height?: number;
   file_size_bytes?: number;

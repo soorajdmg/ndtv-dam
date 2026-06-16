@@ -173,7 +173,7 @@ export default function BatchDetailPage() {
             {allImages.items.map((img) => (
               <ImageCard
                 key={img.id}
-                image={{ ...img, batch_id: batchId }}
+                image={{ ...img, batch_id: batchId, storage_path: img.storage_path ?? "" }}
                 showVariants={false}
               />
             ))}
