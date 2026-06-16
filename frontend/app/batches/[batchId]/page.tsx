@@ -16,8 +16,10 @@ export default function BatchDetailPage() {
   const { data: status, refetch: refetchStatus } = useQuery({
     queryKey: ["batch-status", batchId],
     queryFn: () => getBatchStatus(batchId),
-    refetchInterval: (data) =>
-      data && ["completed", "failed", "partial_failure"].includes(data.status) ? false : 3000,
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      return d && ["completed", "failed", "partial_failure"].includes(d.status) ? false : 3000;
+    },
   });
 
   const isTerminal = status && ["completed", "failed", "partial_failure"].includes(status.status);
