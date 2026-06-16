@@ -5,6 +5,11 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# Celery requires ssl_cert_reqs for rediss:// (TLS) URLs (e.g. Upstash).
+_redis_url = settings.redis_url
+if _redis_url.startswith("rediss://") and "ssl_cert_reqs" not in _redis_url:
+    _redis_url += ("&" if "?" in _redis_url else "?") + "ssl_cert_reqs=CERT_NONE"
+
 # ─── Queue Names ──────────────────────────────────────────────────────────────
 QUEUE_INGEST = "ingest"
 QUEUE_FACE = "face"
@@ -15,8 +20,8 @@ QUEUE_QUALITY = "quality"
 # ─── Celery Application ───────────────────────────────────────────────────────
 celery_app = Celery(
     "ndtv_dam",
-    broker=settings.redis_url,
-    backend=settings.redis_url,
+    broker=_redis_url,
+    backend=_redis_url,
     include=[
         "app.tasks.ingest_tasks",
         "app.tasks.face_tasks",
