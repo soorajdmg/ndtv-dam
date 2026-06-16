@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     qdrant_unknown_faces_collection: str = "unknown_faces"
     clip_vector_size: int = 768  # actual model output dim (overrides nominal clip-vit-base-patch32 default)
 
+    # Auth / JWT
+    jwt_secret_key: str = "change-me-in-production-use-a-long-random-secret"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60 * 24  # 24 hours
+
     # Postgres user/pass (for compose)
     postgres_user: Optional[str] = None
     postgres_password: Optional[str] = None

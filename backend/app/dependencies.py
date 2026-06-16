@@ -1,14 +1,18 @@
 from typing import AsyncGenerator
 
 import redis.asyncio as aioredis
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from qdrant_client import AsyncQdrantClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
 from app.database import get_db  # re-export for convenience
 
-__all__ = ["get_db", "get_qdrant_client", "get_redis_client", "get_settings"]
+__all__ = ["get_db", "get_qdrant_client", "get_redis_client", "get_settings", "get_current_user"]
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 async def get_qdrant_client(
@@ -28,6 +32,28 @@ async def get_qdrant_client(
         yield client
     finally:
         await client.close()
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    db: AsyncSession = Depends(get_db),
+):
+    """FastAPI dependency that returns the authenticated User or raises 401."""
+    from app.models.user_models import User
+    from app.services.auth_service import decode_access_token
+
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    email = decode_access_token(credentials.credentials)
+    if email is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+    result = await db.execute(select(User).where(User.email == email, User.is_active == True))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user
 
 
 async def get_redis_client(

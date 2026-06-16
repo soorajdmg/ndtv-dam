@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.routers import (
     admin_router,
     asset_router,
+    auth_router,
     batch_router,
     health_router,
     person_router,
@@ -128,6 +129,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
+app.include_router(auth_router.router)
 app.include_router(health_router.router)
 app.include_router(upload_router.router)
 app.include_router(batch_router.router)
