@@ -27,17 +27,25 @@ async def semantic_search(
 ):
     from app.services.clip_service import get_clip_service
     from app.services.qdrant_service import search_images
+    import logging
+    _log = logging.getLogger(__name__)
 
-    clip = get_clip_service()
-    query_vector = clip.encode_text(request.query_text)
+    results = []
+    fallback_used = False
 
-    results, fallback_used = await search_images(
-        qdrant=qdrant,
-        query_vector=query_vector.tolist(),
-        filters=request.filters,
-        top_k=request.top_k,
-        settings=settings,
-    )
+    try:
+        clip = get_clip_service()
+        query_vector = clip.encode_text(request.query_text)
+        results, fallback_used = await search_images(
+            qdrant=qdrant,
+            query_vector=query_vector.tolist(),
+            filters=request.filters,
+            top_k=request.top_k,
+            settings=settings,
+        )
+    except Exception as clip_err:
+        _log.warning("CLIP/Qdrant search failed, using metadata fallback: %s", clip_err)
+        fallback_used = True
 
     # Enrich with PostgreSQL metadata
     items = []
@@ -69,27 +77,40 @@ async def semantic_search(
             upload_date=img.created_at,
         ))
 
-    # Fallback if empty
+    # Fallback if empty — search by person name OR filename
     if not items:
         fallback_used = True
-        fb_result = await db.execute(
+        q = request.query_text
+        seen_ids: set[UUID] = set()
+
+        by_person = (
             select(Image)
             .join(ImagePersonLink, ImagePersonLink.image_id == Image.id)
             .join(Person, Person.id == ImagePersonLink.person_id)
-            .where(Person.full_name.ilike(f"%{request.query_text}%"))
-            .limit(request.top_k)
+            .where(Person.full_name.ilike(f"%{q}%"))
         )
-        for img in fb_result.scalars().all():
-            items.append(SearchResultItem(
-                image_id=img.id,
-                score=0.0,
-                storage_path=img.storage_path,
-                original_filename=img.original_filename,
-                overall_quality_score=None,
-                matched_persons=[],
-                batch_id=img.batch_id,
-                upload_date=img.created_at,
-            ))
+        by_filename = select(Image).where(Image.original_filename.ilike(f"%{q}%"))
+
+        for subq in (by_person, by_filename):
+            fb_result = await db.execute(subq.limit(request.top_k))
+            for img in fb_result.scalars().all():
+                if img.id in seen_ids:
+                    continue
+                seen_ids.add(img.id)
+                items.append(SearchResultItem(
+                    image_id=img.id,
+                    score=0.0,
+                    storage_path=img.storage_path,
+                    original_filename=img.original_filename,
+                    overall_quality_score=None,
+                    matched_persons=[],
+                    batch_id=img.batch_id,
+                    upload_date=img.created_at,
+                ))
+                if len(items) >= request.top_k:
+                    break
+            if len(items) >= request.top_k:
+                break
 
     return SemanticSearchResponse(
         query=request.query_text,

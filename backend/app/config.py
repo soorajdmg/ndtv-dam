@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     # Qdrant collection names
     qdrant_images_collection: str = "images"
     qdrant_unknown_faces_collection: str = "unknown_faces"
-    clip_vector_size: int = 768  # actual model output dim (overrides nominal clip-vit-base-patch32 default)
+    clip_vector_size: int = 512  # clip-vit-base-patch32 outputs 512-dim vectors
 
     # Postgres user/pass (for compose)
     postgres_user: Optional[str] = None

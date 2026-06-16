@@ -49,11 +49,6 @@ services:
       dockerfile: ../docker/backend.Dockerfile
     container_name: ndtv_dam_backend
     env_file: .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ndtv}:${POSTGRES_PASSWORD:-ndtvpass}@postgres:5432/${POSTGRES_DB:-ndtv_dam}
-      REDIS_URL: redis://redis:6379/0
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
     ports:
       - "8000:8000"
     volumes:
@@ -76,11 +71,6 @@ services:
     container_name: ndtv_dam_celery
     command: celery -A app.worker worker --loglevel=info -Q ingest,face,embedding,variant,quality -c 4
     env_file: .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ndtv}:${POSTGRES_PASSWORD:-ndtvpass}@postgres:5432/${POSTGRES_DB:-ndtv_dam}
-      REDIS_URL: redis://redis:6379/0
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
     volumes:
       - ./backend:/app
       - upload_data:/data/uploads
@@ -99,9 +89,6 @@ services:
     container_name: ndtv_dam_celery_beat
     command: celery -A app.worker beat --loglevel=info --scheduler celery.beat:PersistentScheduler
     env_file: .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ndtv}:${POSTGRES_PASSWORD:-ndtvpass}@postgres:5432/${POSTGRES_DB:-ndtv_dam}
-      REDIS_URL: redis://redis:6379/0
     volumes:
       - ./backend:/app
     depends_on:
