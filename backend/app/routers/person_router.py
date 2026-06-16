@@ -264,49 +264,21 @@ async def upload_reference_photo(
         raise HTTPException(status_code=404, detail="Person not found")
 
     data = await file.read()
-    try:
-        import tempfile, os
-        import numpy as np
-        from app.services.face_service import detect_faces, refresh_person_embeddings
+    if not data:
+        raise HTTPException(status_code=422, detail="Empty file")
 
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            tmp.write(data)
-            tmp_path = tmp.name
+    # Offload ML processing to the Celery worker — the API server has no cv2/InsightFace.
+    from app.tasks.face_tasks import process_reference_photo
+    task = process_reference_photo.apply_async(
+        args=[str(person_id), data.hex()],
+        queue="face",
+    )
 
-        try:
-            try:
-                faces = detect_faces(tmp_path)
-            except Exception:
-                import time
-                time.sleep(2)
-                faces = detect_faces(tmp_path)
-        finally:
-            os.unlink(tmp_path)
-
-        if not faces:
-            raise HTTPException(status_code=422, detail="No face detected in the uploaded image")
-
-        # Use the face with highest detection confidence
-        best_face = max(faces, key=lambda f: f.detection_confidence)
-        embedding = best_face.embedding.tolist()
-
-        person.face_embedding = embedding
-        await db.commit()
-
-        # Refresh in-memory cache so new uploads immediately match this person
-        refresh_person_embeddings()
-
-        return {
-            "message": "Reference photo processed successfully",
-            "person_id": str(person_id),
-            "detection_confidence": best_face.detection_confidence,
-            "faces_detected": len(faces),
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Face processing failed: {str(e)}")
+    return {
+        "message": "Reference photo queued for processing",
+        "person_id": str(person_id),
+        "task_id": task.id,
+    }
 
 
 # ─── Organizations ────────────────────────────────────────────────────────────

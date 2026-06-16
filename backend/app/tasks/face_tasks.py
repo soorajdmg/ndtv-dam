@@ -317,3 +317,60 @@ def retrospective_match(person_id: str):
 
     finally:
         db.close()
+
+
+@celery_app.task(name="app.tasks.face_tasks.process_reference_photo", bind=True)
+def process_reference_photo(self, person_id: str, image_bytes_hex: str):
+    """
+    Detect a face in a reference photo and store the embedding on the Person row.
+    Called by the API via Celery so that InsightFace/cv2 never loads on Render.
+    """
+    import os
+    import tempfile
+    import numpy as np
+    from app.config import get_settings
+    from app.models.person_models import Person
+    from app.services.face_service import detect_faces, refresh_person_embeddings
+
+    settings = get_settings()
+    db = _get_db_session()
+    try:
+        image_bytes = bytes.fromhex(image_bytes_hex)
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            tmp.write(image_bytes)
+            tmp_path = tmp.name
+
+        try:
+            faces = detect_faces(tmp_path)
+        finally:
+            os.unlink(tmp_path)
+
+        if not faces:
+            log.warning("No face detected in reference photo for person %s", person_id)
+            return {"status": "error", "detail": "No face detected"}
+
+        best_face = max(faces, key=lambda f: f.detection_confidence)
+        embedding = best_face.embedding.tolist()
+
+        person = db.query(Person).filter(Person.id == person_id).first()
+        if not person:
+            return {"status": "error", "detail": "Person not found"}
+
+        person.face_embedding = embedding
+        db.commit()
+
+        refresh_person_embeddings()
+
+        log.info("Reference photo processed: person_id=%s confidence=%.3f", person_id, best_face.detection_confidence)
+        return {
+            "status": "ok",
+            "person_id": person_id,
+            "detection_confidence": best_face.detection_confidence,
+            "faces_detected": len(faces),
+        }
+
+    except Exception as exc:
+        log.error("process_reference_photo failed: person_id=%s error=%s", person_id, exc)
+        raise self.retry(exc=exc, countdown=5, max_retries=2)
+    finally:
+        db.close()
