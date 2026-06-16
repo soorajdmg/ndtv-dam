@@ -215,8 +215,8 @@ def generate_variants(self, image_id: str, force: bool = False):
             paste_y = (CANVAS_H - subject.height) // 2
             canvas.paste(subject, (paste_x, paste_y), subject.split()[3])
 
-            # Logo watermark (top-right) — check local path then R2
-            logo_local = _materialise(settings.brand_logo_path, settings)
+            # Logo watermark (top-right) — always a local file, never in R2
+            logo_local = settings.brand_logo_path
             if os.path.exists(logo_local):
                 logo = PILImage.open(logo_local).convert("RGBA")
                 logo_max = 200
