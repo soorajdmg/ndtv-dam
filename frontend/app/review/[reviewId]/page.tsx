@@ -13,17 +13,6 @@ export default function ReviewWorkspacePage() {
   const router = useRouter();
   const qc = useQueryClient();
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
-      if (e.key === "c" || e.key === "C") confirmMutation.mutate("confirm");
-      if (e.key === "r" || e.key === "R") confirmMutation.mutate("reject");
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
   const confirmMutation = useMutation({
     mutationFn: (action: "confirm" | "reject") => resolveReview(reviewId, action),
     onSuccess: (_, action) => {
@@ -33,6 +22,17 @@ export default function ReviewWorkspacePage() {
     },
     onError: (err: any) => toast.error(err.message),
   });
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.key === "c" || e.key === "C") confirmMutation.mutate("confirm");
+      if (e.key === "r" || e.key === "R") confirmMutation.mutate("reject");
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [confirmMutation]);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -75,7 +75,7 @@ export default function ReviewWorkspacePage() {
           <div className="rounded-xl border border-surface-border bg-surface-card p-5 space-y-4">
             <h2 className="text-sm font-semibold text-white">Review Actions</h2>
             <p className="text-xs text-gray-400">
-              Confirm the AI's identification, correct it, or reject the detection.
+              Confirm the AI&apos;s identification, correct it, or reject the detection.
             </p>
 
             <div className="space-y-2">

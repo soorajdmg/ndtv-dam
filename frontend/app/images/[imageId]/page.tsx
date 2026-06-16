@@ -133,7 +133,7 @@ export default function ImageDetailPage() {
             ) : (
               <div className="rounded-lg border border-surface-border bg-surface-card p-4 text-center">
                 <p className="text-xs text-gray-400">
-                  No variants generated yet. Click "Generate Variants" to create a transparent cutout, square gray background, and branded 16:9 version.
+                  No variants generated yet. Click &quot;Generate Variants&quot; to create a transparent cutout, square gray background, and branded 16:9 version.
                 </p>
               </div>
             )}
