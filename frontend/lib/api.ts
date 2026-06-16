@@ -18,13 +18,17 @@ import type {
   UploadBatchResponse,
 } from "./types";
 
+import { getStoredToken } from "./auth";
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers: optHeaders, ...restOptions } = options ?? {};
+  const token = getStoredToken();
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${BASE_URL}${path}`, {
     ...restOptions,
-    headers: { "Content-Type": "application/json", ...optHeaders },
+    headers: { "Content-Type": "application/json", ...authHeader, ...optHeaders },
   });
   if (!res.ok) {
     const body = await res.text();
@@ -60,6 +64,8 @@ export async function uploadBatch(
     };
     xhr.onerror = () => reject(new Error("Network error during upload"));
     xhr.open("POST", `${BASE_URL}/api/upload/batch`);
+    const uploadToken = getStoredToken();
+    if (uploadToken) xhr.setRequestHeader("Authorization", `Bearer ${uploadToken}`);
     xhr.send(formData);
   });
 }
@@ -144,8 +150,10 @@ export const uploadReferencePhoto = async (
 ): Promise<{ message: string; person_id: string; detection_confidence: number; faces_detected: number }> => {
   const formData = new FormData();
   formData.append("file", file);
+  const refToken = getStoredToken();
   const res = await fetch(`${BASE_URL}/api/persons/${personId}/reference-photo`, {
     method: "POST",
+    headers: refToken ? { Authorization: `Bearer ${refToken}` } : {},
     body: formData,
   });
   if (!res.ok) {

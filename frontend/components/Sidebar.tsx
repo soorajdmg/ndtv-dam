@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import NextImage from "next/image";
 import {
   Building2,
@@ -8,11 +8,13 @@ import {
   GalleryHorizontalEnd,
   Image,
   LayoutDashboard,
+  LogOut,
   Search,
   Upload,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -27,6 +29,13 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
+
+  function handleLogout() {
+    logout();
+    router.push("/login");
+  }
 
   return (
     <aside className="w-60 shrink-0 h-screen sticky top-0 bg-surface-card border-r border-surface-border flex flex-col">
@@ -59,9 +68,24 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-surface-border">
-        <p className="text-xs text-gray-500">NDTV DAM PoC v0.1</p>
+      {/* Footer — user info + logout */}
+      <div className="p-4 border-t border-surface-border space-y-2">
+        {user && (
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-300 truncate">{user.full_name}</p>
+              <p className="text-[10px] text-gray-500 truncate">{user.email}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface-hover transition"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <p className="text-[10px] text-gray-600">NDTV DAM PoC v0.1</p>
       </div>
     </aside>
   );
