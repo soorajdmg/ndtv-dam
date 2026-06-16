@@ -22,6 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Ensure Python can find the `app` package at /app/app
+ENV PYTHONPATH=/app
+
 # Install API-only dependencies (no torch/insightface/CLIP — keeps image small).
 # COPY from repo root (Render sets build context to ".").
 COPY backend/requirements-api.txt ./
@@ -30,12 +33,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy application code
 COPY backend/ .
-
-# Register /app permanently in Python's path via a .pth file.
-# This means `import app` works from any working directory with no
-# PYTHONPATH tricks needed — and without installing pyproject.toml
-# (which would pull in torch/insightface/ML packages we don't want here).
-RUN echo "/app" > "$(python -c 'import site; print(site.getsitepackages()[0])')/ndtv_dam.pth"
 
 # Temp dir for any local file ops (R2 materialisations, etc.)
 RUN mkdir -p /tmp/dam_variants /tmp/dam_clips /tmp/dam_faces
