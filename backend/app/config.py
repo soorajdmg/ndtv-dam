@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # File Storage (local fallback when R2 not configured)
-    upload_dir: str = "/data/uploads"
+    # Defaults to /tmp/dam_uploads so it works on Render's ephemeral filesystem.
+    upload_dir: str = "/tmp/dam_uploads"
 
     # Cloudflare R2 / S3-compatible storage
     r2_endpoint: Optional[str] = None         # e.g. https://<account-id>.r2.cloudflarestorage.com
