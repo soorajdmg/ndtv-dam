@@ -122,6 +122,7 @@ def generate_variants(self, image_id: str, force: bool = False):
             AssetVariant.image_id == image_id, AssetVariant.variant_type == "transparent_cutout"
         ).first() or AssetVariant(image_id=image_id, variant_type="transparent_cutout")
         v1.generation_status = "processing"
+        v1.error_message = None
         db.add(v1)
         db.flush()
 
@@ -148,6 +149,7 @@ def generate_variants(self, image_id: str, force: bool = False):
             AssetVariant.image_id == image_id, AssetVariant.variant_type == "square_gray_bg"
         ).first() or AssetVariant(image_id=image_id, variant_type="square_gray_bg")
         v2.generation_status = "processing"
+        v2.error_message = None
         db.add(v2)
         db.flush()
 
@@ -188,6 +190,7 @@ def generate_variants(self, image_id: str, force: bool = False):
             AssetVariant.image_id == image_id, AssetVariant.variant_type == "branded_16_9"
         ).first() or AssetVariant(image_id=image_id, variant_type="branded_16_9")
         v3.generation_status = "processing"
+        v3.error_message = None
         db.add(v3)
         db.flush()
 
