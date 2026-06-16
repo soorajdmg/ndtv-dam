@@ -347,7 +347,7 @@ export default function PersonDetailPage() {
       {/* Images */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <Image className="w-4 h-4 text-brand-gold" />
+          <Image className="w-4 h-4 text-brand-gold" aria-hidden="true" />
           <h2 className="text-sm font-semibold text-white">
             Images ({images ? images.total : person.image_count})
           </h2>
@@ -369,7 +369,7 @@ export default function PersonDetailPage() {
           </div>
         ) : (
           <div className="rounded-xl border border-surface-border bg-surface-card p-8 flex flex-col items-center justify-center gap-2 text-center">
-            <Image className="w-8 h-8 text-gray-600" />
+            <Image className="w-8 h-8 text-gray-600" aria-hidden="true" />
             <p className="text-sm text-gray-400">No images found for this person.</p>
             <p className="text-xs text-gray-500">Images will appear here once uploaded batches are processed and faces are matched.</p>
           </div>
