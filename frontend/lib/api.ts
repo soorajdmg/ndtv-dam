@@ -25,10 +25,12 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers: optHeaders, ...restOptions } = options ?? {};
   const token = getStoredToken();
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+  const headers = new Headers(optHeaders as HeadersInit | undefined);
+  headers.set("Content-Type", "application/json");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   const res = await fetch(`${BASE_URL}${path}`, {
     ...restOptions,
-    headers: { "Content-Type": "application/json", ...authHeader, ...optHeaders },
+    headers,
   });
   if (!res.ok) {
     const body = await res.text();
