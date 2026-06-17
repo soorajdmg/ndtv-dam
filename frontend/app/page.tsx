@@ -529,8 +529,6 @@ function Pagination({
   totalPages: number;
   onChange: (p: number) => void;
 }) {
-  if (totalPages <= 1) return null;
-
   const getPages = () => {
     const pages: (number | "ellipsis")[] = [];
     if (totalPages <= 7) {

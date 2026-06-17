@@ -3,11 +3,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { ArrowLeft, Image, Upload, CheckCircle, AlertCircle, UserCheck, Pencil, Trash2, X, Plus } from "lucide-react";
+import { ArrowLeft, Image, Upload, CheckCircle, AlertCircle, UserCheck, Pencil, Trash2, X, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import toast from "react-hot-toast";
 import { getPerson, searchByPerson, updatePerson, deletePerson } from "@/lib/api";
 import { ImageCard } from "@/components/ImageCard";
-import { CATEGORY_OPTIONS } from "@/lib/utils";
+import { CATEGORY_OPTIONS, cn } from "@/lib/utils";
 
 export default function PersonDetailPage() {
   const { personId } = useParams<{ personId: string }>();
@@ -28,14 +28,17 @@ export default function PersonDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+
   const { data: person, isLoading: personLoading, error: personError } = useQuery({
     queryKey: ["person", personId],
     queryFn: () => getPerson(personId),
   });
 
   const { data: images } = useQuery({
-    queryKey: ["person-images", personId],
-    queryFn: () => searchByPerson(personId, 1, 20),
+    queryKey: ["person-images", personId, page],
+    queryFn: () => searchByPerson(personId, page, PAGE_SIZE),
     enabled: !!person,
   });
 
@@ -265,20 +268,35 @@ export default function PersonDetailPage() {
           </h2>
         </div>
         {images && images.results.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            {images.results.map((item) => (
-              <ImageCard key={item.image_id} image={{
-                id: item.image_id,
-                batch_id: item.batch_id,
-                original_filename: item.original_filename,
-                storage_path: item.storage_path,
-                upload_status: "completed",
-                is_duplicate: false,
-                created_at: item.upload_date,
-                overall_quality_score: item.overall_quality_score,
-              }} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+              {images.results.map((item) => (
+                <ImageCard key={item.image_id} image={{
+                  id: item.image_id,
+                  batch_id: item.batch_id,
+                  original_filename: item.original_filename,
+                  storage_path: item.storage_path,
+                  upload_status: "completed",
+                  is_duplicate: false,
+                  created_at: item.upload_date,
+                  overall_quality_score: item.overall_quality_score,
+                }} />
+              ))}
+            </div>
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(images.total / PAGE_SIZE));
+              return totalPages > 1 ? (
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  onChange={(p) => {
+                    setPage(p);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                />
+              ) : null;
+            })()}
+          </>
         ) : (
           <div className="rounded-xl border border-surface-border bg-surface-card p-8 flex flex-col items-center justify-center gap-2 text-center">
             <Image className="w-8 h-8 text-gray-600" aria-hidden="true" />
@@ -380,6 +398,75 @@ export default function PersonDetailPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (p: number) => void;
+}) {
+  const getPages = () => {
+    const pages: (number | "ellipsis")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (page > 3) pages.push("ellipsis");
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (page < totalPages - 2) pages.push("ellipsis");
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      <button
+        onClick={() => onChange(Math.max(1, page - 1))}
+        disabled={page === 1}
+        className="p-1.5 rounded-lg border border-surface-border text-gray-400 hover:text-white hover:border-brand-gold/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+
+      {getPages().map((p, i) =>
+        p === "ellipsis" ? (
+          <span key={`e-${i}`} className="px-1 text-gray-500 text-sm">
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            className={cn(
+              "min-w-[32px] h-8 rounded-lg text-sm font-medium transition-colors",
+              page === p
+                ? "bg-brand-gold text-brand-navy"
+                : "border border-surface-border text-gray-400 hover:text-white hover:border-brand-gold/50"
+            )}
+          >
+            {p}
+          </button>
+        )
+      )}
+
+      <button
+        onClick={() => onChange(Math.min(totalPages, page + 1))}
+        disabled={page === totalPages}
+        className="p-1.5 rounded-lg border border-surface-border text-gray-400 hover:text-white hover:border-brand-gold/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }
