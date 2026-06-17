@@ -256,6 +256,38 @@ export default function PersonDetailPage() {
         </div>
       )}
 
+      {/* Images */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Image className="w-4 h-4 text-brand-gold" aria-hidden="true" />
+          <h2 className="text-sm font-semibold text-white">
+            Images ({images ? images.total : person.image_count})
+          </h2>
+        </div>
+        {images && images.results.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            {images.results.map((item) => (
+              <ImageCard key={item.image_id} image={{
+                id: item.image_id,
+                batch_id: item.batch_id,
+                original_filename: item.original_filename,
+                storage_path: item.storage_path,
+                upload_status: "completed",
+                is_duplicate: false,
+                created_at: item.upload_date,
+                overall_quality_score: item.overall_quality_score,
+              }} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-surface-border bg-surface-card p-8 flex flex-col items-center justify-center gap-2 text-center">
+            <Image className="w-8 h-8 text-gray-600" aria-hidden="true" />
+            <p className="text-sm text-gray-400">No images found for this person.</p>
+            <p className="text-xs text-gray-500">Images will appear here once uploaded batches are processed and faces are matched.</p>
+          </div>
+        )}
+      </div>
+
       {/* Person Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="rounded-xl border border-surface-border bg-surface-card p-5 space-y-3">
@@ -270,7 +302,12 @@ export default function PersonDetailPage() {
             {person.organization && (
               <div className="flex gap-2">
                 <span className="text-gray-400 w-28 shrink-0">Organization</span>
-                <span className="text-white">{person.organization}</span>
+                <Link
+                  href={`/organizations?search=${encodeURIComponent(person.organization)}`}
+                  className="text-brand-gold hover:text-brand-gold-light hover:underline transition-colors"
+                >
+                  {person.organization}
+                </Link>
               </div>
             )}
             {person.category && (
@@ -340,38 +377,6 @@ export default function PersonDetailPage() {
           <div className="flex items-start gap-2 rounded-lg border border-red-700/40 bg-red-900/20 p-3">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
             <p className="text-xs text-red-300">{uploadError}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Images */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Image className="w-4 h-4 text-brand-gold" aria-hidden="true" />
-          <h2 className="text-sm font-semibold text-white">
-            Images ({images ? images.total : person.image_count})
-          </h2>
-        </div>
-        {images && images.results.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            {images.results.map((item) => (
-              <ImageCard key={item.image_id} image={{
-                id: item.image_id,
-                batch_id: item.batch_id,
-                original_filename: item.original_filename,
-                storage_path: item.storage_path,
-                upload_status: "completed",
-                is_duplicate: false,
-                created_at: item.upload_date,
-                overall_quality_score: item.overall_quality_score,
-              }} />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-surface-border bg-surface-card p-8 flex flex-col items-center justify-center gap-2 text-center">
-            <Image className="w-8 h-8 text-gray-600" aria-hidden="true" />
-            <p className="text-sm text-gray-400">No images found for this person.</p>
-            <p className="text-xs text-gray-500">Images will appear here once uploaded batches are processed and faces are matched.</p>
           </div>
         )}
       </div>
