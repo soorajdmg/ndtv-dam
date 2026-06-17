@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings, get_settings
 from app.dependencies import get_db
 from app.models import Image, Organization, Person, PersonOrganizationLink
 from app.models.image_models import ImagePersonLink
+from app.services import storage_service
 from app.schemas.person_schemas import (
     OrganizationCreate,
     OrganizationResponse,
@@ -357,8 +359,84 @@ async def delete_organization(org_id: uuid.UUID, db: AsyncSession = Depends(get_
     org = result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
+    # Delete old logo from storage if present
+    if org.logo_url and "/api/storage/" in org.logo_url:
+        old_key = org.logo_url.split("/api/storage/", 1)[-1]
+        _settings = get_settings()
+        storage_service.delete_file(old_key, _settings)
     await db.delete(org)
     await db.flush()
+
+
+_LOGO_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/jpg", "image/svg+xml"}
+_LOGO_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+@router.post(
+    "/organizations/{org_id}/logo",
+    response_model=OrganizationResponse,
+    summary="Upload or replace organisation logo",
+)
+async def upload_organization_logo(
+    org_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    if file.content_type not in _LOGO_ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{file.content_type}'. Allowed: JPEG, PNG, WebP, SVG.",
+        )
+
+    data = await file.read()
+    if len(data) > _LOGO_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Logo file exceeds 5 MB limit.")
+
+    # Delete previous logo if one exists
+    if org.logo_url and "/api/storage/" in org.logo_url:
+        old_key = org.logo_url.split("/api/storage/", 1)[-1]
+        storage_service.delete_file(old_key, settings)
+
+    ext = (file.filename or "logo").rsplit(".", 1)[-1].lower() if file.filename else "png"
+    key = f"logos/{org_id}.{ext}"
+    storage_service.upload_file(data, key, settings)
+    logo_url = storage_service.get_public_url(key, settings)
+
+    org.logo_url = logo_url
+    await db.flush()
+    await db.refresh(org)
+    return OrganizationResponse.model_validate(org)
+
+
+@router.delete(
+    "/organizations/{org_id}/logo",
+    response_model=OrganizationResponse,
+    summary="Remove organisation logo",
+)
+async def delete_organization_logo(
+    org_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    if org.logo_url and "/api/storage/" in org.logo_url:
+        old_key = org.logo_url.split("/api/storage/", 1)[-1]
+        storage_service.delete_file(old_key, settings)
+
+    org.logo_url = None
+    await db.flush()
+    await db.refresh(org)
+    return OrganizationResponse.model_validate(org)
 
 
 @router.get("/organizations/{org_id}/persons", response_model=PersonListResponse, summary="List persons in organization")

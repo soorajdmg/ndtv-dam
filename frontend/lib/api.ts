@@ -220,6 +220,35 @@ export const listPersonsByOrg = (orgId: string, page = 1, pageSize = 20) =>
     `/api/organizations/${orgId}/persons?page=${page}&page_size=${pageSize}`
   );
 
+export async function uploadOrganizationLogo(orgId: string, file: File): Promise<Organization> {
+  const token = getStoredToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${BASE_URL}/api/organizations/${orgId}/logo`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`API ${res.status}: ${body}`);
+  }
+  return res.json() as Promise<Organization>;
+}
+
+export async function deleteOrganizationLogo(orgId: string): Promise<Organization> {
+  const token = getStoredToken();
+  const res = await fetch(`${BASE_URL}/api/organizations/${orgId}/logo`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`API ${res.status}: ${body}`);
+  }
+  return res.json() as Promise<Organization>;
+}
+
 // ─── Search ───────────────────────────────────────────────────────────────────
 export const semanticSearch = (query: string, filters: SearchFilters = {}, top_k = 20) =>
   apiFetch<SemanticSearchResponse>("/api/search/semantic", {

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   GitBranch,
   Calendar,
+  Upload,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -22,6 +23,8 @@ import {
   deleteOrganization,
   listOrganizations,
   listPersonsByOrg,
+  uploadOrganizationLogo,
+  deleteOrganizationLogo,
 } from "@/lib/api";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -38,6 +41,9 @@ export default function OrgDetailPage() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoRemoving, setLogoRemoving] = useState(false);
 
   const [page, setPage] = useState(1);
 
@@ -111,6 +117,37 @@ export default function OrgDetailPage() {
     }
   }
 
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      await uploadOrganizationLogo(orgId, file);
+      toast.success("Logo uploaded");
+      queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Logo upload failed");
+    } finally {
+      setLogoUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleLogoRemove() {
+    setLogoRemoving(true);
+    try {
+      await deleteOrganizationLogo(orgId);
+      toast.success("Logo removed");
+      queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove logo");
+    } finally {
+      setLogoRemoving(false);
+    }
+  }
+
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
   if (error) return <div className="p-6 text-red-400">Failed to load organization: {error instanceof Error ? error.message : "Unknown error"}</div>;
   if (!org) return <div className="p-6 text-gray-400">Organization not found.</div>;
@@ -128,7 +165,15 @@ export default function OrgDetailPage() {
           <Link href="/organizations" className="text-gray-400 hover:text-white transition-colors shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <Building2 className="w-5 h-5 text-brand-gold shrink-0" />
+          {org.logo_url ? (
+            <img
+              src={org.logo_url}
+              alt={org.name}
+              className="w-8 h-8 rounded object-contain shrink-0 bg-surface border border-surface-border"
+            />
+          ) : (
+            <Building2 className="w-5 h-5 text-brand-gold shrink-0" />
+          )}
           <h1 className="text-2xl font-bold text-white truncate">{org.name}</h1>
           {org.entity_type && (
             <span className="px-2 py-0.5 rounded-full text-xs bg-brand-navy border border-surface-border text-gray-300 shrink-0">
@@ -278,6 +323,52 @@ export default function OrgDetailPage() {
               </span>
             </div>
           </div>
+
+          {/* Logo management */}
+          <div className="pt-3 border-t border-surface-border space-y-2">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Logo</span>
+            {org.logo_url ? (
+              <div className="flex items-center gap-3">
+                <img
+                  src={org.logo_url}
+                  alt="Organisation logo"
+                  className="w-14 h-14 rounded-lg object-contain bg-surface border border-surface-border p-1"
+                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded-lg border border-surface-border bg-surface text-xs text-gray-300 hover:text-white hover:border-brand-gold/50 transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    {logoUploading ? "Uploading..." : "Replace"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      className="hidden"
+                      disabled={logoUploading}
+                      onChange={handleLogoUpload}
+                    />
+                  </label>
+                  <button
+                    onClick={handleLogoRemove}
+                    disabled={logoRemoving}
+                    className="px-3 py-1.5 rounded-lg border border-red-800/50 text-xs text-red-400 hover:text-red-300 hover:border-red-600 disabled:opacity-50 transition-colors"
+                  >
+                    {logoRemoving ? "Removing..." : "Remove"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex items-center gap-2 cursor-pointer w-fit px-3 py-2 rounded-lg border border-dashed border-surface-border text-xs text-gray-400 hover:text-white hover:border-brand-gold/50 transition-colors">
+                <Upload className="w-3.5 h-3.5" />
+                {logoUploading ? "Uploading..." : "Upload logo"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                  className="hidden"
+                  disabled={logoUploading}
+                  onChange={handleLogoUpload}
+                />
+              </label>
+            )}
+          </div>
         </div>
 
         {/* Child organizations */}
@@ -296,7 +387,15 @@ export default function OrgDetailPage() {
                   href={`/organizations/${child.id}`}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-hover transition-colors group"
                 >
-                  <Building2 className="w-3.5 h-3.5 text-brand-gold shrink-0" />
+                  {child.logo_url ? (
+                    <img
+                      src={child.logo_url}
+                      alt={child.name}
+                      className="w-4 h-4 rounded object-contain shrink-0 bg-surface border border-surface-border"
+                    />
+                  ) : (
+                    <Building2 className="w-3.5 h-3.5 text-brand-gold shrink-0" />
+                  )}
                   <span className="text-sm text-gray-300 group-hover:text-white transition-colors">{child.name}</span>
                   {child.entity_type && (
                     <span className="text-xs text-gray-500">{child.entity_type}</span>

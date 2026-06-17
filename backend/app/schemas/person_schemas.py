@@ -16,6 +16,7 @@ class OrganizationResponse(BaseModel):
     name: str
     entity_type: Optional[str] = None
     parent_organization_id: Optional[UUID] = None
+    logo_url: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -25,6 +26,7 @@ class OrganizationUpdate(BaseModel):
     name: Optional[str] = None
     entity_type: Optional[str] = None
     parent_organization_id: Optional[UUID] = None
+    logo_url: Optional[str] = None
 
 
 class PersonOrganizationLinkCreate(BaseModel):
