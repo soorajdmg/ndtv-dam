@@ -12,6 +12,7 @@ from app.models.image_models import ImagePersonLink
 from app.schemas.person_schemas import (
     OrganizationCreate,
     OrganizationResponse,
+    OrganizationUpdate,
     PersonCreate,
     PersonListResponse,
     PersonMergeRequest,
@@ -322,3 +323,85 @@ async def list_organizations(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Organization))
     orgs = result.scalars().all()
     return [OrganizationResponse.model_validate(o) for o in orgs]
+
+
+@router.get("/organizations/{org_id}", response_model=OrganizationResponse, summary="Get organization")
+async def get_organization(org_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return OrganizationResponse.model_validate(org)
+
+
+@router.put("/organizations/{org_id}", response_model=OrganizationResponse, summary="Update organization")
+async def update_organization(
+    org_id: uuid.UUID,
+    payload: OrganizationUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    for field, value in payload.model_dump(exclude_none=True).items():
+        setattr(org, field, value)
+    await db.flush()
+    await db.refresh(org)
+    return OrganizationResponse.model_validate(org)
+
+
+@router.delete("/organizations/{org_id}", status_code=204, summary="Delete organization")
+async def delete_organization(org_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    await db.delete(org)
+    await db.flush()
+
+
+@router.get("/organizations/{org_id}/persons", response_model=PersonListResponse, summary="List persons in organization")
+async def list_persons_in_org(
+    org_id: uuid.UUID,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    query = select(Person).where(
+        Person.deleted_at.is_(None),
+        Person.organization.ilike(f"%{org.name}%"),
+    )
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar_one()
+
+    query = query.offset((page - 1) * page_size).limit(page_size)
+    persons_result = await db.execute(query)
+    persons = persons_result.scalars().all()
+
+    items = []
+    for p in persons:
+        count_res = await db.execute(
+            select(func.count()).select_from(ImagePersonLink).where(ImagePersonLink.person_id == p.id)
+        )
+        img_count = count_res.scalar_one()
+        items.append(PersonResponse(
+            id=p.id,
+            full_name=p.full_name,
+            aliases=p.aliases or [],
+            designation=p.designation,
+            organization=p.organization,
+            category=p.category,
+            has_face_embedding=bool(p.face_embedding),
+            created_at=p.created_at,
+            updated_at=p.updated_at,
+            image_count=img_count,
+            organization_links=[],
+        ))
+
+    return PersonListResponse(items=items, total=total, page=page, page_size=page_size)

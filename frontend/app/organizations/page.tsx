@@ -1,52 +1,25 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, ChevronRight, ChevronDown, Users, Plus, X } from "lucide-react";
+import { Building2, ChevronRight, ChevronDown, Plus, X } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { listOrganizations, createOrganization, listPersons } from "@/lib/api";
+import { listOrganizations, createOrganization } from "@/lib/api";
 import type { Organization } from "@/lib/types";
-
-function PersonsInOrg({ orgName }: { orgName: string }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["persons-by-org", orgName],
-    queryFn: () => listPersons({ organization: orgName, page_size: 100 }),
-  });
-  const persons = data?.items ?? [];
-
-  if (isLoading) return <p className="text-xs text-gray-500 mt-1 ml-5">Loading...</p>;
-  if (persons.length === 0) return <p className="text-xs text-gray-500 mt-1 ml-5">No persons linked</p>;
-  return (
-    <div className="mt-2 ml-5 flex flex-wrap gap-2">
-      {persons.map((p) => (
-        <Link
-          key={p.id}
-          href={`/persons/${p.id}`}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-surface-border text-xs text-gray-300 hover:text-white hover:border-brand-gold/40 transition-colors"
-        >
-          <Users className="w-3 h-3 text-brand-gold" />
-          {p.full_name}
-          {p.designation && <span className="text-gray-500">· {p.designation}</span>}
-        </Link>
-      ))}
-    </div>
-  );
-}
 
 function OrgNode({ org, allOrgs, depth = 0 }: { org: Organization; allOrgs: Organization[]; depth?: number }) {
   const [expanded, setExpanded] = useState(depth < 1);
-  const [showPersons, setShowPersons] = useState(false);
   const children = allOrgs.filter((o) => o.parent_organization_id === org.id);
 
   return (
     <div>
       <div
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-hover transition-colors ${depth === 0 ? "mt-1" : ""}`}
+        className={`flex items-center gap-2 rounded-lg ${depth === 0 ? "mt-1" : ""}`}
         style={{ paddingLeft: `${12 + depth * 20}px` }}
       >
         <button
           onClick={() => children.length && setExpanded(!expanded)}
-          className="shrink-0"
+          className="shrink-0 p-2"
         >
           {children.length > 0 ? (
             expanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />
@@ -54,20 +27,17 @@ function OrgNode({ org, allOrgs, depth = 0 }: { org: Organization; allOrgs: Orga
             <span className="w-3 h-3 block" />
           )}
         </button>
-        <Building2 className="w-4 h-4 text-brand-gold shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white">{org.name}</p>
-          {org.entity_type && <p className="text-xs text-gray-400">{org.entity_type}</p>}
-        </div>
-        <button
-          onClick={() => setShowPersons(!showPersons)}
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-400 hover:text-white hover:bg-surface border border-transparent hover:border-surface-border transition-colors shrink-0"
+        <Link
+          href={`/organizations/${org.id}`}
+          className="flex flex-1 min-w-0 items-center gap-2 py-2 pr-3 rounded-lg hover:bg-surface-hover transition-colors group"
         >
-          <Users className="w-3 h-3" />
-          {showPersons ? "Hide" : "Persons"}
-        </button>
+          <Building2 className="w-4 h-4 text-brand-gold shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white group-hover:text-brand-gold transition-colors">{org.name}</p>
+            {org.entity_type && <p className="text-xs text-gray-400">{org.entity_type}</p>}
+          </div>
+        </Link>
       </div>
-      {showPersons && <PersonsInOrg orgName={org.name} />}
       {expanded && children.map((child) => (
         <OrgNode key={child.id} org={child} allOrgs={allOrgs} depth={depth + 1} />
       ))}

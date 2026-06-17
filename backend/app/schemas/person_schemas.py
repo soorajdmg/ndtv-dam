@@ -21,6 +21,12 @@ class OrganizationResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OrganizationUpdate(BaseModel):
+    name: Optional[str] = None
+    entity_type: Optional[str] = None
+    parent_organization_id: Optional[UUID] = None
+
+
 class PersonOrganizationLinkCreate(BaseModel):
     organization_id: UUID
     designation: Optional[str] = None

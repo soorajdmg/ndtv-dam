@@ -36,6 +36,9 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     const body = await res.text();
     throw new Error(`API ${res.status}: ${body}`);
   }
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
   return res.json() as Promise<T>;
 }
 
@@ -188,6 +191,8 @@ export const uploadReferencePhoto = async (
 // ─── Organizations ────────────────────────────────────────────────────────────
 export const listOrganizations = () => apiFetch<Organization[]>("/api/organizations");
 
+export const getOrganization = (id: string) => apiFetch<Organization>(`/api/organizations/${id}`);
+
 export const createOrganization = (data: {
   name: string;
   entity_type?: string;
@@ -197,6 +202,23 @@ export const createOrganization = (data: {
     method: "POST",
     body: JSON.stringify(data),
   });
+
+export const updateOrganization = (
+  id: string,
+  data: { name?: string; entity_type?: string; parent_organization_id?: string | null },
+) =>
+  apiFetch<Organization>(`/api/organizations/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteOrganization = (id: string) =>
+  apiFetch<void>(`/api/organizations/${id}`, { method: "DELETE" });
+
+export const listPersonsByOrg = (orgId: string, page = 1, pageSize = 20) =>
+  apiFetch<{ items: import("./types").Person[]; total: number; page: number; page_size: number }>(
+    `/api/organizations/${orgId}/persons?page=${page}&page_size=${pageSize}`
+  );
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 export const semanticSearch = (query: string, filters: SearchFilters = {}, top_k = 20) =>
