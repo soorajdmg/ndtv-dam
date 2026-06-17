@@ -5,23 +5,15 @@ import NextImage from "next/image";
 import {
   Building2,
   ClipboardCheck,
-  GalleryHorizontalEnd,
-  Image,
   LayoutDashboard,
   LogOut,
-  Search,
-  Upload,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/upload", label: "Upload", icon: Upload },
-  { href: "/batches", label: "Batches", icon: GalleryHorizontalEnd },
-  { href: "/images", label: "Images", icon: Image },
-  { href: "/search", label: "Search", icon: Search },
+  { href: "/", label: "Asset Library", icon: LayoutDashboard },
   { href: "/persons", label: "Persons", icon: Users },
   { href: "/organizations", label: "Organizations", icon: Building2 },
   { href: "/review", label: "Review Queue", icon: ClipboardCheck },

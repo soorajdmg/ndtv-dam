@@ -2,11 +2,10 @@
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, Download, Tag, User, Wand2 } from "lucide-react";
+import { ArrowLeft, Download, User, Wand2 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { getImageVariants, getVariantDownloadUrl, generateImageVariants, getImageQuality, getImageMetadata } from "@/lib/api";
-import { ScoreBreakdownBar } from "@/components/ScoreBreakdownBar";
+import { getImageVariants, getVariantDownloadUrl, generateImageVariants, getImageMetadata } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 import { VARIANT_LABELS } from "@/lib/utils";
 
@@ -26,11 +25,6 @@ export default function ImageDetailPage() {
       );
       return isActive ? 2000 : false;
     },
-  });
-
-  const { data: quality } = useQuery({
-    queryKey: ["image-quality", imageId],
-    queryFn: () => getImageQuality(imageId),
   });
 
   const { data: metadata } = useQuery({
@@ -181,39 +175,6 @@ export default function ImageDetailPage() {
             )}
           </div>
 
-          {/* Semantic Tags */}
-          <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Tag className="w-4 h-4 text-blue-400" />
-              <h2 className="text-sm font-semibold text-white">Semantic Tags</h2>
-            </div>
-            {metadata && metadata.semantic_tags.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {metadata.semantic_tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-blue-400 border border-blue-500/20"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-500">Semantic tags load after CLIP processing completes.</p>
-            )}
-          </div>
-
-          {/* Quality Scores */}
-          <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-            <h2 className="text-sm font-semibold text-white mb-3">Quality Scores</h2>
-            {quality && quality.overall !== undefined ? (
-              <ScoreBreakdownBar quality={quality} />
-            ) : (
-              <p className="text-xs text-gray-500">
-                Quality data loads after processing completes. Check batch status for progress.
-              </p>
-            )}
-          </div>
         </div>
       </div>
     </div>
