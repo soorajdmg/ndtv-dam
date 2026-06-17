@@ -46,3 +46,4 @@ prometheus-fastapi-instrumentator==7.0.0
 # Auth utilities
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+google-auth[requests]==2.29.0

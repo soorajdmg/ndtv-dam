@@ -1,3 +1,4 @@
+import asyncio
 import io
 import os
 from pathlib import Path
@@ -10,10 +11,10 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings, Settings
-from app.dependencies import get_db
+from app.dependencies import get_db, get_qdrant_client
 from app.models.embedding_models import ClipEmbedding
 from app.models.face_models import FaceDetection
-from app.models.image_models import Image, ImagePersonLink, ImageQualityScore
+from app.models.image_models import Image, ImagePersonLink, ImageQualityScore, UploadBatch
 from app.models.person_models import Person
 from app.models.variant_models import AssetVariant
 from app.schemas.asset_schemas import AssetVariantResponse
@@ -250,3 +251,89 @@ async def get_face_crop(
     crop.save(buf, format="JPEG", quality=85)
     buf.seek(0)
     return StreamingResponse(buf, media_type="image/jpeg")
+
+
+async def _delete_image_files(img: Image, variants: list, settings: Settings) -> None:
+    """Delete original + all variant files from R2 or local disk."""
+    from app.services import storage_service
+
+    keys_to_delete = []
+    if img.storage_path:
+        keys_to_delete.append(storage_service.local_path_to_key(img.storage_path, settings))
+    for v in variants:
+        if v.storage_path:
+            keys_to_delete.append(storage_service.local_path_to_key(v.storage_path, settings))
+
+    for key in keys_to_delete:
+        await asyncio.to_thread(storage_service.delete_file, key, settings)
+
+
+@router.delete("/images/{image_id}", status_code=200, summary="Delete an image and all its data")
+async def delete_image(
+    image_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    qdrant=Depends(get_qdrant_client),
+):
+    """
+    Permanently deletes an image record plus:
+    - All variant files (R2 / local disk)
+    - The original file (R2 / local disk)
+    - The CLIP vector from Qdrant
+    - All related DB rows (cascaded: quality score, face detections, variants, embeddings)
+    """
+    from app.services import qdrant_service
+
+    result = await db.execute(select(Image).where(Image.id == image_id))
+    img = result.scalar_one_or_none()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    variants_result = await db.execute(select(AssetVariant).where(AssetVariant.image_id == image_id))
+    variants = variants_result.scalars().all()
+
+    # Delete files from storage
+    await _delete_image_files(img, variants, settings)
+
+    # Delete CLIP vector from Qdrant
+    await qdrant_service.delete_image_vector(qdrant, str(image_id), settings)
+
+    # Delete DB record (cascades to quality_score, face_detections, variants, clip_embedding)
+    await db.delete(img)
+    await db.commit()
+
+    return {"deleted": str(image_id)}
+
+
+@router.delete("/batches/{batch_id}", status_code=200, summary="Delete an entire batch and all its images")
+async def delete_batch(
+    batch_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    qdrant=Depends(get_qdrant_client),
+):
+    """
+    Permanently deletes all images in a batch plus the batch record itself.
+    Cleans up storage files and Qdrant vectors for every image in the batch.
+    """
+    from app.services import qdrant_service
+
+    result = await db.execute(select(UploadBatch).where(UploadBatch.id == batch_id))
+    batch = result.scalar_one_or_none()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    images_result = await db.execute(select(Image).where(Image.batch_id == batch_id))
+    images = images_result.scalars().all()
+
+    for img in images:
+        variants_result = await db.execute(select(AssetVariant).where(AssetVariant.image_id == img.id))
+        variants = variants_result.scalars().all()
+        await _delete_image_files(img, variants, settings)
+        await qdrant_service.delete_image_vector(qdrant, str(img.id), settings)
+
+    # Deleting the batch cascades to all images and their children
+    await db.delete(batch)
+    await db.commit()
+
+    return {"deleted_batch": str(batch_id), "deleted_images": len(images)}

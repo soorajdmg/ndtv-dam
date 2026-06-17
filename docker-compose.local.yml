@@ -1,0 +1,38 @@
+# Local development overrides for docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+#
+# What this file does:
+#   1. Points backend, celery_worker, celery_beat, flower, frontend to .env.local
+#      so they talk to the LOCAL postgres/redis/qdrant containers instead of cloud.
+#   2. Uses worker.Dockerfile for celery_worker (has PyTorch, CLIP, InsightFace).
+#   3. Fixes UPLOAD_DIR to a Linux container path.
+#   4. Sets NEXT_PUBLIC_API_URL to localhost so the browser can reach the backend.
+
+version: "3.9"
+
+services:
+  backend:
+    env_file: .env.local
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    env_file: .env.local
+    volumes:
+      - ./backend:/app
+      - upload_data:/data/uploads
+      - ./assets:/assets:ro
+
+  celery_beat:
+    env_file: .env.local
+
+  flower:
+    env_file: .env.local
+    environment:
+      REDIS_URL: redis://redis:6379/0
+
+  frontend:
+    env_file: .env.local
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000

@@ -1,14 +1,47 @@
-.PHONY: up down migrate seed test-backend test-frontend lint build logs shell-backend shell-db
+.PHONY: up down migrate seed test-backend test-frontend lint build logs shell-backend shell-db \
+        local-up local-down local-logs local-build
 
 # ─── Environment ──────────────────────────────────────────────────────────────
-COMPOSE = docker compose
-BACKEND = $(COMPOSE) exec backend
-DB      = $(COMPOSE) exec postgres
+COMPOSE       = docker compose
+COMPOSE_LOCAL = docker compose -f docker-compose.yml -f docker-compose.local.yml
+BACKEND       = $(COMPOSE) exec backend
+BACKEND_LOCAL = $(COMPOSE_LOCAL) exec backend
+DB            = $(COMPOSE) exec postgres
 
 # ─── Infrastructure ───────────────────────────────────────────────────────────
 up:
 	$(COMPOSE) up -d --build
 	@echo "Services started. Frontend: http://localhost:3000 | API: http://localhost:8000 | Flower: http://localhost:5555"
+
+# ─── Local dev (all services on localhost, no cloud Postgres/Redis/Qdrant) ────
+local-up:
+	$(COMPOSE_LOCAL) up -d --build
+	@echo "LOCAL services started."
+	@echo "  Frontend : http://localhost:3000"
+	@echo "  API      : http://localhost:8000"
+	@echo "  Flower   : http://localhost:5555"
+	@echo "  Qdrant   : http://localhost:6333"
+
+local-build:
+	$(COMPOSE_LOCAL) build --no-cache
+
+local-down:
+	$(COMPOSE_LOCAL) down
+
+local-down-volumes:
+	$(COMPOSE_LOCAL) down -v
+
+local-logs:
+	$(COMPOSE_LOCAL) logs -f
+
+local-logs-backend:
+	$(COMPOSE_LOCAL) logs -f backend celery_worker
+
+local-migrate:
+	$(BACKEND_LOCAL) alembic upgrade head
+
+local-shell:
+	$(BACKEND_LOCAL) bash
 
 down:
 	$(COMPOSE) down

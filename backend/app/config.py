@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60 * 24  # 24 hours
 
+    # Google OAuth
+    google_client_id: Optional[str] = None
+
     # Postgres user/pass (for compose)
     postgres_user: Optional[str] = None
     postgres_password: Optional[str] = None

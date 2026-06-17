@@ -40,3 +40,7 @@ class UserResponse(BaseModel):
     is_admin: bool
 
     model_config = {"from_attributes": True}
+
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str

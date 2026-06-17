@@ -1,7 +1,7 @@
 "use client";
 import { usePathname } from "next/navigation";
 
-const HIDE_SIDEBAR_PATHS = ["/login", "/signup"];
+const HIDE_SIDEBAR_PATHS = ["/login"];
 
 export function SidebarGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
