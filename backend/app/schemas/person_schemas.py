@@ -43,6 +43,8 @@ class PersonCreate(BaseModel):
     designation: Optional[str] = None
     organization: Optional[str] = None
     category: Optional[str] = None  # Government | Analyst | Businessperson | NDTV Staff
+    source: Optional[str] = None      # NDTV | NDTV Profit | ANI | Reuters | PTI
+    person_type: Optional[str] = None  # Govt | Business | Market | NDTV | Others
 
 
 class PersonUpdate(BaseModel):
@@ -51,6 +53,8 @@ class PersonUpdate(BaseModel):
     designation: Optional[str] = None
     organization: Optional[str] = None
     category: Optional[str] = None
+    source: Optional[str] = None
+    person_type: Optional[str] = None
 
 
 class PersonResponse(BaseModel):
@@ -60,6 +64,8 @@ class PersonResponse(BaseModel):
     designation: Optional[str] = None
     organization: Optional[str] = None
     category: Optional[str] = None
+    source: Optional[str] = None
+    person_type: Optional[str] = None
     has_face_embedding: bool = False
     created_at: datetime
     updated_at: datetime

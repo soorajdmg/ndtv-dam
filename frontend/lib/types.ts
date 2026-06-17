@@ -82,6 +82,8 @@ export interface ImagePersonSummary {
   designation?: string;
   organization?: string;
   category?: string;
+  source?: string;
+  person_type?: string;
 }
 
 export interface ImageMetadata {

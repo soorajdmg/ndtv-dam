@@ -18,6 +18,8 @@ class Person(Base):
     designation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     organization: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     category: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source: Mapped[Optional[str]] = mapped_column(Text, nullable=True)       # NDTV | NDTV Profit | ANI | Reuters | PTI
+    person_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Govt | Business | Market | NDTV | Others
     face_embedding: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)

@@ -125,11 +125,22 @@ export const createPerson = (data: {
   designation?: string;
   organization?: string;
   category?: string;
+  source?: string;
+  person_type?: string;
 }) =>
   apiFetch<Person>("/api/persons", {
     method: "POST",
     body: JSON.stringify(data),
   });
+
+export const linkPersonToImage = (imageId: string, personId: string) =>
+  apiFetch<{ image_id: string; person_id: string; status: string }>(
+    `/api/images/${imageId}/persons`,
+    {
+      method: "POST",
+      body: JSON.stringify({ person_id: personId }),
+    }
+  );
 
 export const updatePerson = (id: string, data: Partial<Person>) =>
   apiFetch<Person>(`/api/persons/${id}`, {
@@ -145,6 +156,15 @@ export const mergePersons = (sourceId: string, targetId: string) =>
     method: "POST",
     body: JSON.stringify({ source_person_id: sourceId, target_person_id: targetId }),
   });
+
+export const reassignPersonInImage = (imageId: string, oldPersonId: string, newPersonId: string) =>
+  apiFetch<{ image_id: string; old_person_id: string; new_person_id: string; status: string }>(
+    `/api/images/${imageId}/reassign-person`,
+    {
+      method: "POST",
+      body: JSON.stringify({ old_person_id: oldPersonId, new_person_id: newPersonId }),
+    }
+  );
 
 export const uploadReferencePhoto = async (
   personId: string,

@@ -30,34 +30,49 @@ async def create_person(
     payload: PersonCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    # Deduplication check
+    # Deduplication check — return existing record so callers can proceed without error
     filters = [Person.full_name.ilike(payload.full_name), Person.deleted_at.is_(None)]
     result = await db.execute(select(Person).where(*filters))
     existing = result.scalar_one_or_none()
     if existing:
-        raise HTTPException(
-            status_code=409,
-            detail={"message": "Person already exists", "existing_id": str(existing.id), "existing_name": existing.full_name},
+        count_res = await db.execute(
+            select(func.count()).select_from(ImagePersonLink).where(ImagePersonLink.person_id == existing.id)
+        )
+        return PersonResponse(
+            id=existing.id,
+            full_name=existing.full_name,
+            aliases=existing.aliases or [],
+            designation=existing.designation,
+            organization=existing.organization,
+            category=existing.category,
+            source=existing.source,
+            person_type=existing.person_type,
+            has_face_embedding=bool(existing.face_embedding),
+            created_at=existing.created_at,
+            updated_at=existing.updated_at,
+            image_count=count_res.scalar_one(),
+            organization_links=[],
         )
 
     person = Person(**payload.model_dump())
     db.add(person)
     await db.flush()
 
-    person_resp = PersonResponse(
+    return PersonResponse(
         id=person.id,
         full_name=person.full_name,
-        aliases=person.aliases,
+        aliases=person.aliases or [],
         designation=person.designation,
         organization=person.organization,
         category=person.category,
+        source=person.source,
+        person_type=person.person_type,
         has_face_embedding=bool(person.face_embedding),
         created_at=person.created_at,
         updated_at=person.updated_at,
         image_count=0,
         organization_links=[],
     )
-    return person_resp
 
 
 @router.get("/persons", response_model=PersonListResponse, summary="List persons")
@@ -214,6 +229,17 @@ async def merge_persons(payload: PersonMergeRequest, db: AsyncSession = Depends(
     )
     for fr in fr_result.scalars().all():
         fr.matched_person_id = payload.target_person_id
+
+    # Move image_person_links from source → target (upsert to avoid PK conflicts)
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    src_links_result = await db.execute(
+        select(ImagePersonLink).where(ImagePersonLink.person_id == payload.source_person_id)
+    )
+    for link in src_links_result.scalars().all():
+        stmt = pg_insert(ImagePersonLink).values(
+            image_id=link.image_id, person_id=payload.target_person_id, primary_face=link.primary_face
+        ).on_conflict_do_nothing()
+        await db.execute(stmt)
 
     # Move aliases
     src_aliases = list(source.aliases or [])

@@ -68,3 +68,19 @@ export const CATEGORY_OPTIONS = [
   "Entertainment",
   "Other",
 ];
+
+export const SOURCE_OPTIONS = [
+  "NDTV",
+  "NDTV Profit",
+  "ANI",
+  "Reuters",
+  "PTI",
+];
+
+export const PERSON_TYPE_OPTIONS = [
+  "Govt",
+  "Business",
+  "Market",
+  "NDTV",
+  "Others",
+];

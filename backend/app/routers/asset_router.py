@@ -152,6 +152,121 @@ async def get_image_quality(image_id: UUID, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/images/{image_id}/persons", status_code=201, summary="Manually link a person to an image")
+async def link_person_to_image(
+    image_id: UUID,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create an image_person_links row to manually associate a person with an image.
+    Expects JSON body: { "person_id": "<uuid>" }
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    person_id_str = body.get("person_id")
+    if not person_id_str:
+        raise HTTPException(status_code=422, detail="person_id is required")
+
+    try:
+        person_id = UUID(str(person_id_str))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid person_id")
+
+    # Verify image exists
+    img = (await db.execute(select(Image).where(Image.id == image_id))).scalar_one_or_none()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Verify person exists
+    person = (await db.execute(select(Person).where(Person.id == person_id))).scalar_one_or_none()
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    # Upsert the link (ignore if already exists)
+    stmt = pg_insert(ImagePersonLink).values(
+        image_id=image_id, person_id=person_id, primary_face=False
+    ).on_conflict_do_nothing()
+    await db.execute(stmt)
+    await db.commit()
+
+    return {"image_id": str(image_id), "person_id": str(person_id), "status": "linked"}
+
+
+@router.post("/images/{image_id}/reassign-person", summary="Reassign a person in a single image")
+async def reassign_person_in_image(
+    image_id: UUID,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Corrects a misidentification in a single image.
+    Removes the old person link for this image and adds the new one.
+    Also updates any face recognition record tied to this image to point to the new person.
+    Does NOT affect other images or delete any person record.
+
+    Expects JSON body: { "old_person_id": "<uuid>", "new_person_id": "<uuid>" }
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from app.models.face_models import FaceRecognition
+
+    old_person_id_str = body.get("old_person_id")
+    new_person_id_str = body.get("new_person_id")
+    if not old_person_id_str or not new_person_id_str:
+        raise HTTPException(status_code=422, detail="old_person_id and new_person_id are required")
+
+    try:
+        old_person_id = UUID(str(old_person_id_str))
+        new_person_id = UUID(str(new_person_id_str))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid person_id")
+
+    if old_person_id == new_person_id:
+        raise HTTPException(status_code=422, detail="old_person_id and new_person_id are the same")
+
+    # Verify image exists
+    img = (await db.execute(select(Image).where(Image.id == image_id))).scalar_one_or_none()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Verify new person exists
+    new_person = (await db.execute(select(Person).where(Person.id == new_person_id))).scalar_one_or_none()
+    if not new_person:
+        raise HTTPException(status_code=404, detail="New person not found")
+
+    # Remove old image-person link for this image only
+    old_link = (await db.execute(
+        select(ImagePersonLink).where(
+            ImagePersonLink.image_id == image_id,
+            ImagePersonLink.person_id == old_person_id,
+        )
+    )).scalar_one_or_none()
+    if old_link:
+        await db.delete(old_link)
+
+    # Add new image-person link (upsert in case it already exists)
+    stmt = pg_insert(ImagePersonLink).values(
+        image_id=image_id, person_id=new_person_id, primary_face=old_link.primary_face if old_link else False
+    ).on_conflict_do_nothing()
+    await db.execute(stmt)
+
+    # Update face recognition records tied to this image that pointed to the old person
+    face_detections_result = await db.execute(
+        select(FaceDetection).where(FaceDetection.image_id == image_id)
+    )
+    for fd in face_detections_result.scalars().all():
+        fr_result = await db.execute(
+            select(FaceRecognition).where(
+                FaceRecognition.face_detection_id == fd.id,
+                FaceRecognition.matched_person_id == old_person_id,
+            )
+        )
+        for fr in fr_result.scalars().all():
+            fr.matched_person_id = new_person_id
+
+    await db.commit()
+    return {"image_id": str(image_id), "old_person_id": str(old_person_id), "new_person_id": str(new_person_id), "status": "reassigned"}
+
+
 @router.get("/images/{image_id}/metadata", summary="Get image persons and semantic tags")
 async def get_image_metadata(image_id: UUID, db: AsyncSession = Depends(get_db)):
     # Matched persons via image_person_links
@@ -175,6 +290,8 @@ async def get_image_metadata(image_id: UUID, db: AsyncSession = Depends(get_db))
                 "designation": p.designation,
                 "organization": p.organization,
                 "category": p.category,
+                "source": p.source,
+                "person_type": p.person_type,
             }
             for p in persons
         ],
