@@ -17,6 +17,8 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
+  /** Mirrors NextAuth sessionStatus — "loading" | "authenticated" | "unauthenticated" */
+  sessionStatus: "loading" | "authenticated" | "unauthenticated";
   logout: () => void;
 }
 
@@ -81,6 +83,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (sessionStatus === "unauthenticated") {
         lastGoogleIdToken.current = undefined;
         // No Google session — check for a still-valid backend JWT in localStorage.
+        // This also handles the case where users have a valid backend JWT but no
+        // active NextAuth session (e.g. after a page refresh where NextAuth session
+        // expired but the backend JWT is still valid).
         const stored = localStorage.getItem(TOKEN_KEY);
         if (stored) {
           const u = await fetchMe(stored);
@@ -92,6 +97,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           localStorage.removeItem(TOKEN_KEY);
         }
+        // Only clear the user state after confirming there is no valid stored JWT.
+        // Do NOT call setIsLoading(false) with user=null until we are certain —
+        // this prevents AuthGuard from redirecting to /login during the brief
+        // "unauthenticated" window that NextAuth emits right after an OAuth
+        // callback before flipping to "authenticated".
         setToken(null);
         setUser(null);
         setIsLoading(false);
@@ -152,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, sessionStatus, logout }}>
       {children}
     </AuthContext.Provider>
   );

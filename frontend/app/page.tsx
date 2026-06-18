@@ -810,8 +810,8 @@ export default function DashboardPage() {
           <div className="flex items-center gap-1 rounded-xl border border-surface-border p-1">
             {(
               [
-                { mode: "gallery" as ViewMode, icon: GalleryThumbnails, label: "Gallery" },
-                { mode: "grid" as ViewMode, icon: LayoutGrid, label: "Grid" },
+                { mode: "gallery" as ViewMode, icon: LayoutGrid, label: "Gallery" },
+                { mode: "grid" as ViewMode, icon: GalleryThumbnails, label: "Grid" },
                 { mode: "list" as ViewMode, icon: List, label: "List" },
               ] as const
             ).map(({ mode, icon: Icon, label }) => (

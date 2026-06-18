@@ -199,9 +199,13 @@ async def link_person_to_image(
     db: AsyncSession = Depends(get_db),
 ):
     """Create an image_person_links row to manually associate a person with an image.
+    Also resolves any pending review queue items for this image's face detections.
     Expects JSON body: { "person_id": "<uuid>" }
     """
+    from datetime import datetime, timezone
     from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from app.models.face_models import FaceRecognition
+    from app.models.job_models import ReviewQueue
 
     person_id_str = body.get("person_id")
     if not person_id_str:
@@ -227,6 +231,36 @@ async def link_person_to_image(
         image_id=image_id, person_id=person_id, primary_face=False
     ).on_conflict_do_nothing()
     await db.execute(stmt)
+
+    # Auto-resolve any pending review queue items for this image's face detections
+    now = datetime.now(timezone.utc)
+    face_detections_result = await db.execute(
+        select(FaceDetection).where(FaceDetection.image_id == image_id)
+    )
+    for fd in face_detections_result.scalars().all():
+        # Update the face recognition record to point to the manually chosen person
+        fr_result = await db.execute(
+            select(FaceRecognition).where(FaceRecognition.face_detection_id == fd.id)
+        )
+        fr = fr_result.scalars().first()
+        if fr and fr.recognition_status in ("low_confidence", "unknown"):
+            fr.matched_person_id = person_id
+            fr.recognition_status = "recognized"
+            fr.recognition_method = "manual"
+            fr.reviewed_at = now
+
+        # Resolve pending/in_review queue items for this face detection
+        rq_result = await db.execute(
+            select(ReviewQueue).where(
+                ReviewQueue.face_detection_id == fd.id,
+                ReviewQueue.status.in_(["pending", "in_review"]),
+            )
+        )
+        for rq in rq_result.scalars().all():
+            rq.status = "resolved"
+            rq.resolved_at = now
+            rq.resolution_notes = f"Resolved by manual person link: {person.full_name}"
+
     await db.commit()
 
     return {"image_id": str(image_id), "person_id": str(person_id), "status": "linked"}

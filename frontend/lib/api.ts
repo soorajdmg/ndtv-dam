@@ -296,6 +296,9 @@ export const generateImageVariants = (imageId: string) =>
 export const getVariantDownloadUrl = (variantId: string) =>
   `${BASE_URL}/api/assets/${variantId}/download`;
 
+export const deleteImage = (imageId: string) =>
+  apiFetch<{ deleted: string }>(`/api/images/${imageId}`, { method: "DELETE" });
+
 export const getFaceCropUrl = (detectionId: string) =>
   `${BASE_URL}/api/face-detections/${detectionId}/crop`;
 
@@ -305,6 +308,9 @@ export const getReviewQueue = (page = 1, pageSize = 20, reason?: string) => {
   if (reason) qs.set("reason", reason);
   return apiFetch<ReviewQueueListResponse>(`/api/review/queue?${qs}`);
 };
+
+export const getReviewItem = (reviewId: string) =>
+  apiFetch<ReviewQueueItem>(`/api/review/queue/${reviewId}`);
 
 export const claimReview = (reviewId: string, reviewer: string) =>
   apiFetch<{ review_id: string; status: string; assigned_to: string }>(

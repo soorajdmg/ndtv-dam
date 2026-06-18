@@ -2,7 +2,6 @@
 import logging
 import time
 
-import cv2
 import numpy as np
 
 from app.worker import celery_app
@@ -32,6 +31,7 @@ def _check_already_done(db, image_id: str, stage: str) -> bool:
 
 def compute_sharpness(img_gray: np.ndarray) -> float:
     """Laplacian variance — higher = sharper."""
+    import cv2
     return float(cv2.Laplacian(img_gray, cv2.CV_64F).var())
 
 
@@ -126,6 +126,7 @@ def score_image(self, image_id: str):
         else:
             read_path = img_record.storage_path
 
+        import cv2
         img_cv = cv2.imread(read_path, cv2.IMREAD_GRAYSCALE)
         if img_cv is None:
             raise ValueError(f"Cannot read image: {read_path}")
