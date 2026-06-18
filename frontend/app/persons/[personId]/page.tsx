@@ -3,7 +3,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { ArrowLeft, Image, Upload, CheckCircle, AlertCircle, UserCheck, Pencil, Trash2, X, Plus, ChevronLeft, ChevronRight, ScanFace, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Upload, CheckCircle, AlertCircle, UserCheck, Pencil, Trash2, X, Plus, ChevronLeft, ChevronRight, ScanFace, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 import { getPerson, searchByPerson, updatePerson, deletePerson } from "@/lib/api";
 import { ImageCard } from "@/components/ImageCard";
@@ -262,7 +262,7 @@ export default function PersonDetailPage() {
       {/* Images */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <Image className="w-4 h-4 text-brand-gold" aria-hidden="true" />
+          <ImageIcon className="w-4 h-4 text-brand-gold" aria-hidden="true" />
           <h2 className="text-sm font-semibold text-white">
             Images ({images ? images.total : person.image_count})
           </h2>
@@ -299,7 +299,7 @@ export default function PersonDetailPage() {
           </>
         ) : (
           <div className="rounded-xl border border-surface-border bg-surface-card p-8 flex flex-col items-center justify-center gap-2 text-center">
-            <Image className="w-8 h-8 text-gray-600" aria-hidden="true" />
+            <ImageIcon className="w-8 h-8 text-gray-600" aria-hidden="true" />
             <p className="text-sm text-gray-400">No images found for this person.</p>
             <p className="text-xs text-gray-500">Images will appear here once uploaded batches are processed and faces are matched.</p>
           </div>
@@ -370,7 +370,7 @@ export default function PersonDetailPage() {
               <div>
                 <h2 className="text-sm font-semibold text-green-400">Face Recognition Active</h2>
                 <p className="text-xs text-green-300/70 mt-0.5">
-                  This person's face has been trained. They will be automatically tagged in all future batch uploads.
+                  This person&apos;s face has been trained. They will be automatically tagged in all future batch uploads.
                 </p>
               </div>
             </div>
