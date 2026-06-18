@@ -1,8 +1,8 @@
 "use client";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Download, User, Wand2, Pencil, X, Check, Building2, Plus, UserPlus, Radio, Tag } from "lucide-react";
+import { ArrowLeft, Download, User, Wand2, Pencil, X, Check, Building2, Plus, UserPlus, Radio, Tag, Trash2 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import {
@@ -16,9 +16,10 @@ import {
   createOrganization,
   listPersons,
   linkPersonToImage,
+  deleteImage,
 } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
-import { VARIANT_LABELS, SOURCE_OPTIONS, PERSON_TYPE_OPTIONS } from "@/lib/utils";
+import { VARIANT_LABELS } from "@/lib/utils";
 import type { ImagePersonSummary, Organization } from "@/lib/types";
 
 // ─── Shimmer skeleton ─────────────────────────────────────────────────────────
@@ -239,15 +240,28 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
     full_name: "",
     designation: "",
     organization: "",
-    source: "",
-    person_type: "",
   });
   const [saving, setSaving] = useState(false);
 
-  async function handleLink(personId: string, personName: string) {
+  async function uploadThumbAsReference(personId: string) {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    try {
+      const res = await fetch(`${apiBase}/api/images/${imageId}/thumbnail`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const file = new File([blob], "reference.jpg", { type: "image/jpeg" });
+      await uploadReferencePhoto(personId, file);
+    } catch { /* non-fatal */ }
+  }
+
+  async function handleLink(personId: string, personName: string, hasEmbedding: boolean) {
     setLinking(true);
     try {
       await linkPersonToImage(imageId, personId);
+      // Upload reference photo only if the person has no embedding yet
+      if (!hasEmbedding) {
+        await uploadThumbAsReference(personId);
+      }
       toast.success(`${personName} linked to this image`);
       onDone();
     } catch (err) {
@@ -266,9 +280,8 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
         full_name: form.full_name.trim(),
         designation: form.designation.trim() || undefined,
         organization: form.organization.trim() || undefined,
-        source: form.source || undefined,
-        person_type: form.person_type || undefined,
       });
+      await uploadThumbAsReference(person.id);
       await linkPersonToImage(imageId, person.id);
       toast.success(`${person.full_name} linked to this image`);
       onDone();
@@ -330,7 +343,7 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
                     key={p.id}
                     type="button"
                     disabled={linking}
-                    onClick={() => handleLink(p.id, p.full_name)}
+                    onClick={() => handleLink(p.id, p.full_name, !!p.has_face_embedding)}
                     className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-gray-200 hover:bg-surface hover:text-white transition-colors border-b border-surface-border last:border-0"
                   >
                     <div className="w-5 h-5 rounded-full bg-brand-gold/20 flex items-center justify-center shrink-0">
@@ -383,30 +396,6 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
               onChange={(name) => setForm({ ...form, organization: name })}
               onCreated={onOrgCreated}
             />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-gray-400 mb-0.5">Source</label>
-              <select
-                value={form.source}
-                onChange={(e) => setForm({ ...form, source: e.target.value })}
-                className="w-full px-2 py-1 rounded bg-brand-navy border border-surface-border text-white text-xs focus:outline-none focus:border-brand-gold/50"
-              >
-                <option value="">—</option>
-                {SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-0.5">Type</label>
-              <select
-                value={form.person_type}
-                onChange={(e) => setForm({ ...form, person_type: e.target.value })}
-                className="w-full px-2 py-1 rounded bg-brand-navy border border-surface-border text-white text-xs focus:outline-none focus:border-brand-gold/50"
-              >
-                <option value="">—</option>
-                {PERSON_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
           </div>
           <div className="flex gap-2 pt-0.5">
             <button
@@ -471,8 +460,6 @@ function PersonReassignForm({ imageId, currentPersonId, orgs, onOrgCreated, onDo
     full_name: "",
     designation: "",
     organization: "",
-    source: "",
-    person_type: "",
   });
 
   async function handleSelectExisting(targetId: string, targetName: string) {
@@ -501,8 +488,6 @@ function PersonReassignForm({ imageId, currentPersonId, orgs, onOrgCreated, onDo
         full_name: newForm.full_name.trim(),
         designation: newForm.designation.trim() || undefined,
         organization: newForm.organization.trim() || undefined,
-        source: newForm.source || undefined,
-        person_type: newForm.person_type || undefined,
       });
       // 2. Use current image as their reference photo (best-effort)
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -609,24 +594,6 @@ function PersonReassignForm({ imageId, currentPersonId, orgs, onOrgCreated, onDo
             <OrgPicker value={newForm.organization} orgs={orgs}
               onChange={(name) => setNewForm({ ...newForm, organization: name })}
               onCreated={onOrgCreated} />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-gray-400 mb-0.5">Source</label>
-              <select value={newForm.source} onChange={(e) => setNewForm({ ...newForm, source: e.target.value })}
-                className="w-full px-2 py-1 rounded bg-brand-navy border border-surface-border text-white text-xs focus:outline-none focus:border-brand-gold/50">
-                <option value="">—</option>
-                {SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-0.5">Type</label>
-              <select value={newForm.person_type} onChange={(e) => setNewForm({ ...newForm, person_type: e.target.value })}
-                className="w-full px-2 py-1 rounded bg-brand-navy border border-surface-border text-white text-xs focus:outline-none focus:border-brand-gold/50">
-                <option value="">—</option>
-                {PERSON_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
           </div>
           <p className="text-xs text-gray-500">This image will be used as their reference photo.</p>
           <div className="flex gap-2 pt-0.5">
@@ -774,8 +741,11 @@ export default function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [generating, setGenerating] = useState(false);
   const [addingPerson, setAddingPerson] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: variants, isLoading: variantsLoading } = useQuery({
     queryKey: ["image-variants", imageId],
@@ -801,6 +771,20 @@ export default function ImageDetailPage() {
 
   function handleOrgCreated(org: Organization) {
     queryClient.setQueryData<Organization[]>(["organizations"], (prev = []) => [...prev, org]);
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteImage(imageId);
+      toast.success("Image deleted");
+      queryClient.invalidateQueries({ queryKey: ["images"] });
+      router.push("/");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete image");
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
   }
 
   async function handleGenerateVariants() {
@@ -835,6 +819,35 @@ export default function ImageDetailPage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-2xl font-bold text-white">Image Detail</h1>
+        <div className="ml-auto">
+          {!confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-surface-border text-gray-400 hover:text-red-400 hover:border-red-500/40 text-xs transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete image
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-400">Permanently delete this image?</span>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+              >
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="px-3 py-1.5 rounded-lg border border-surface-border text-gray-400 hover:text-white text-xs transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

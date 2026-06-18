@@ -234,6 +234,9 @@ export const generateImageVariants = (imageId: string) =>
 export const getVariantDownloadUrl = (variantId: string) =>
   `${BASE_URL}/api/assets/${variantId}/download`;
 
+export const deleteImage = (imageId: string) =>
+  apiFetch<{ deleted: string }>(`/api/images/${imageId}`, { method: "DELETE" });
+
 export const getFaceCropUrl = (detectionId: string) =>
   `${BASE_URL}/api/face-detections/${detectionId}/crop`;
 

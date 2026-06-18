@@ -15,6 +15,7 @@ psycopg2-binary==2.9.9
 # Task queue (API only enqueues tasks, doesn't run them)
 celery[redis]==5.4.0
 redis==5.0.4
+flower==2.0.1
 
 # Vector store
 qdrant-client==1.9.1
