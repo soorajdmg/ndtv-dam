@@ -26,6 +26,49 @@ from app.schemas.review_schemas import (
 router = APIRouter(prefix="/api/review", tags=["review"])
 
 
+@router.get("/queue/{review_id}", response_model=ReviewQueueItem, summary="Get a single review queue item")
+async def get_review_item(
+    review_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(ReviewQueue).where(ReviewQueue.id == review_id))
+    rq = result.scalar_one_or_none()
+    if not rq:
+        raise HTTPException(status_code=404, detail="Review item not found")
+
+    fd_res = await db.execute(select(FaceDetection).where(FaceDetection.id == rq.face_detection_id))
+    fd = fd_res.scalar_one_or_none()
+    if not fd:
+        raise HTTPException(status_code=404, detail="Face detection not found")
+
+    fr_res = await db.execute(
+        select(FaceRecognition)
+        .where(FaceRecognition.face_detection_id == fd.id)
+        .order_by(FaceRecognition.similarity_score.desc().nullslast())
+    )
+    fr = fr_res.scalars().first()
+
+    person_name = None
+    if fr and fr.matched_person_id:
+        p_res = await db.execute(select(Person).where(Person.id == fr.matched_person_id))
+        p = p_res.scalar_one_or_none()
+        person_name = p.full_name if p else None
+
+    return ReviewQueueItem(
+        id=rq.id,
+        face_detection_id=rq.face_detection_id,
+        image_id=fd.image_id,
+        reason=rq.reason,
+        status=rq.status,
+        assigned_to=rq.assigned_to,
+        detection_confidence=fd.detection_confidence,
+        ai_guess_person_id=fr.matched_person_id if fr else None,
+        ai_guess_person_name=person_name,
+        ai_similarity_score=fr.similarity_score if fr else None,
+        created_at=rq.created_at,
+    )
+
+
 @router.get("/queue", response_model=ReviewQueueListResponse, summary="List review queue items")
 async def get_review_queue(
     page: int = Query(1, ge=1),

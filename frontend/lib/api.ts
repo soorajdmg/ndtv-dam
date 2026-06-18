@@ -244,6 +244,9 @@ export const getReviewQueue = (page = 1, pageSize = 20, reason?: string) => {
   return apiFetch<ReviewQueueListResponse>(`/api/review/queue?${qs}`);
 };
 
+export const getReviewItem = (reviewId: string) =>
+  apiFetch<ReviewQueueItem>(`/api/review/queue/${reviewId}`);
+
 export const claimReview = (reviewId: string, reviewer: string) =>
   apiFetch<{ review_id: string; status: string; assigned_to: string }>(
     `/api/review/queue/${reviewId}/claim?reviewer=${encodeURIComponent(reviewer)}`,
