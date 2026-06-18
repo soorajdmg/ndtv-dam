@@ -67,6 +67,9 @@ export interface Image {
   batch_id: string;
   original_filename: string;
   storage_path: string;
+  title?: string;
+  caption?: string;
+  manual_tags?: string[];
   width?: number;
   height?: number;
   file_size_bytes?: number;
@@ -75,6 +78,12 @@ export interface Image {
   is_duplicate: boolean;
   duplicate_of_id?: string;
   created_at: string;
+}
+
+export interface ImageMetadataUpdate {
+  title?: string;
+  caption?: string;
+  manual_tags?: string[];
 }
 
 export interface ImagePersonSummary {

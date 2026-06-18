@@ -17,7 +17,7 @@ from app.models.face_models import FaceDetection
 from app.models.image_models import Image, ImagePersonLink, ImageQualityScore, UploadBatch
 from app.models.person_models import Person
 from app.models.variant_models import AssetVariant
-from app.schemas.asset_schemas import AssetVariantResponse
+from app.schemas.asset_schemas import AssetVariantResponse, ImageDetailResponse, ImageMetadataUpdate
 from app.schemas.batch_schemas import QualityBreakdown
 
 router = APIRouter(prefix="/api", tags=["assets"])
@@ -80,6 +80,46 @@ async def list_images(
         })
 
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/images/{image_id}", response_model=ImageDetailResponse, summary="Get a single image's detail")
+async def get_image_detail(image_id: UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Image).where(Image.id == image_id))
+    img = result.scalar_one_or_none()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return ImageDetailResponse.model_validate(img)
+
+
+@router.patch("/images/{image_id}", response_model=ImageDetailResponse, summary="Update image editorial metadata")
+async def update_image_metadata(
+    image_id: UUID,
+    body: ImageMetadataUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Image).where(Image.id == image_id))
+    img = result.scalar_one_or_none()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    if body.title is not None:
+        img.title = body.title.strip() or None
+    if body.caption is not None:
+        img.caption = body.caption.strip() or None
+    if body.manual_tags is not None:
+        # Deduplicate while preserving order, strip whitespace, drop empty strings
+        seen: set[str] = set()
+        cleaned: list[str] = []
+        for tag in body.manual_tags:
+            t = tag.strip().lower()
+            if t and t not in seen:
+                seen.add(t)
+                cleaned.append(t)
+        img.manual_tags = cleaned
+
+    await db.commit()
+    await db.refresh(img)
+    return ImageDetailResponse.model_validate(img)
 
 
 @router.get("/images/{image_id}/variants", response_model=list[AssetVariantResponse], summary="Get image variants")

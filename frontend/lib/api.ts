@@ -4,8 +4,10 @@ import type {
   BatchImage,
   BatchStatusResponse,
   HealthStatus,
+  Image,
   ImageListItem,
   ImageMetadata,
+  ImageMetadataUpdate,
   Organization,
   Person,
   QualityBreakdown,
@@ -268,6 +270,15 @@ export const searchByPerson = (personId: string, page = 1, pageSize = 20) =>
   );
 
 // ─── Assets / Variants ───────────────────────────────────────────────────────
+export const getImageDetail = (imageId: string) =>
+  apiFetch<Image>(`/api/images/${imageId}`);
+
+export const updateImageMetadata = (imageId: string, data: ImageMetadataUpdate) =>
+  apiFetch<Image>(`/api/images/${imageId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+
 export const getImageVariants = (imageId: string) =>
   apiFetch<AssetVariant[]>(`/api/images/${imageId}/variants`);
 

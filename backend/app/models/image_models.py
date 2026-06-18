@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import BigInteger, Boolean, Enum, Float, ForeignKey, Integer, Text, TIMESTAMP, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -50,6 +50,9 @@ class Image(Base):
     duplicate_of_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("images.id", ondelete="SET NULL"), nullable=True
     )
+    title: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    caption: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    manual_tags: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     batch: Mapped["UploadBatch"] = relationship(back_populates="images")

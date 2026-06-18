@@ -10,6 +10,8 @@ import {
   getVariantDownloadUrl,
   generateImageVariants,
   getImageMetadata,
+  getImageDetail,
+  updateImageMetadata,
   createPerson,
   uploadReferencePhoto,
   listOrganizations,
@@ -768,6 +770,97 @@ function PersonRow({ person, imageId, orgs, onSaved, onOrgCreated }: PersonRowPr
   );
 }
 
+// ─── Tag input ────────────────────────────────────────────────────────────────
+
+interface TagInputProps {
+  tags: string[];
+  suggestions: string[];
+  onChange: (tags: string[]) => void;
+}
+
+function TagInput({ tags, suggestions, onChange }: TagInputProps) {
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function addTag(raw: string) {
+    const tag = raw.trim().toLowerCase();
+    if (!tag || tags.includes(tag)) return;
+    onChange([...tags, tag]);
+    setInput("");
+  }
+
+  function removeTag(tag: string) {
+    onChange(tags.filter((t) => t !== tag));
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addTag(input);
+    } else if (e.key === "Backspace" && !input && tags.length > 0) {
+      removeTag(tags[tags.length - 1]);
+    }
+  }
+
+  const availableSuggestions = suggestions.filter(
+    (s) => !tags.includes(s.toLowerCase()) && s.toLowerCase().includes(input.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-2">
+      {/* Existing tags */}
+      <div
+        className="flex flex-wrap gap-1.5 min-h-[28px] p-1.5 rounded bg-brand-navy border border-surface-border cursor-text"
+        onClick={() => inputRef.current?.focus()}
+      >
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-gold/15 text-brand-gold border border-brand-gold/25 text-xs font-medium"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); removeTag(tag); }}
+              className="text-brand-gold/60 hover:text-brand-gold transition-colors"
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={tags.length === 0 ? "Type a tag, press Enter…" : ""}
+          className="flex-1 min-w-[100px] bg-transparent text-xs text-white placeholder-gray-600 focus:outline-none"
+        />
+      </div>
+
+      {/* Suggestions */}
+      {availableSuggestions.length > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Suggestions</p>
+          <div className="flex flex-wrap gap-1">
+            {availableSuggestions.slice(0, 8).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => addTag(s)}
+                className="px-2 py-0.5 rounded-full border border-surface-border text-xs text-gray-400 hover:border-brand-gold/40 hover:text-brand-gold transition-colors"
+              >
+                + {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ImageDetailPage() {
@@ -776,6 +869,13 @@ export default function ImageDetailPage() {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [addingPerson, setAddingPerson] = useState(false);
+
+  // ── Editorial metadata edit state ───────────────────────────────────────────
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftCaption, setDraftCaption] = useState("");
+  const [draftTags, setDraftTags] = useState<string[]>([]);
 
   const { data: variants, isLoading: variantsLoading } = useQuery({
     queryKey: ["image-variants", imageId],
@@ -792,6 +892,11 @@ export default function ImageDetailPage() {
   const { data: metadata, isLoading: metadataLoading } = useQuery({
     queryKey: ["image-metadata", imageId],
     queryFn: () => getImageMetadata(imageId),
+  });
+
+  const { data: imageDetail } = useQuery({
+    queryKey: ["image-detail", imageId],
+    queryFn: () => getImageDetail(imageId),
   });
 
   const { data: orgs = [] } = useQuery({
@@ -826,6 +931,31 @@ export default function ImageDetailPage() {
   function invalidatePeople() {
     queryClient.invalidateQueries({ queryKey: ["image-metadata", imageId] });
     queryClient.invalidateQueries({ queryKey: ["persons"] });
+  }
+
+  function enterEditMode() {
+    setDraftTitle(imageDetail?.title ?? "");
+    setDraftCaption(imageDetail?.caption ?? "");
+    setDraftTags(imageDetail?.manual_tags ?? []);
+    setEditingInfo(true);
+  }
+
+  async function saveInfo() {
+    setSavingInfo(true);
+    try {
+      await updateImageMetadata(imageId, {
+        title: draftTitle,
+        caption: draftCaption,
+        manual_tags: draftTags,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["image-detail", imageId] });
+      setEditingInfo(false);
+      toast.success("Image info saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingInfo(false);
+    }
   }
 
   return (
@@ -915,67 +1045,169 @@ export default function ImageDetailPage() {
 
           {/* ── Image Info card ──────────────────────────────────────── */}
           <div className="rounded-xl border border-surface-border bg-surface-card p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-white">Image Info</h2>
+            {/* Card header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white">Image Info</h2>
+              {!editingInfo ? (
+                <button
+                  onClick={enterEditMode}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-surface-border text-xs text-gray-400 hover:text-white hover:border-brand-gold/40 transition-colors"
+                  title="Edit title, caption and tags"
+                >
+                  <Pencil className="w-3 h-3" />
+                  Edit
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={saveInfo}
+                    disabled={savingInfo}
+                    className="flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-brand-gold text-brand-navy text-xs font-semibold disabled:opacity-50 transition-colors"
+                  >
+                    <Check className="w-3 h-3" />
+                    {savingInfo ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    onClick={() => setEditingInfo(false)}
+                    disabled={savingInfo}
+                    className="p-1 rounded-md border border-surface-border text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
 
             {metadataLoading ? (
               <div className="space-y-2">
                 <Shimmer className="h-3 w-32" />
                 <Shimmer className="h-3 w-24" />
               </div>
-            ) : (() => {
-              const persons = metadata?.persons ?? [];
-              // Collect unique non-empty values across all persons in this image
-              const sources = Array.from(new Set(persons.map((p) => p.source).filter(Boolean))) as string[];
-              const types   = Array.from(new Set(persons.map((p) => p.person_type).filter(Boolean))) as string[];
-
-              return (
-                <div className="space-y-2.5">
-                  {/* Source row */}
-                  <div className="flex items-start gap-2">
-                    <Radio className="w-3.5 h-3.5 text-gray-500 mt-0.5 shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Source</p>
-                      {sources.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {sources.map((src) => {
-                            const style = SOURCE_STYLES[src] ?? "bg-gray-500/10 text-gray-400 border-gray-500/20";
-                            return (
-                              <span key={src} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${style}`}>
-                                {src}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-600">—</span>
+            ) : (
+              <div className="space-y-3">
+                {/* ── Title ── */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Title</p>
+                  {editingInfo ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      value={draftTitle}
+                      onChange={(e) => setDraftTitle(e.target.value)}
+                      placeholder="Add a display title…"
+                      className="w-full px-2 py-1 rounded bg-brand-navy border border-surface-border text-white text-xs placeholder-gray-600 focus:outline-none focus:border-brand-gold/50"
+                    />
+                  ) : (
+                    <p className="text-xs text-white">
+                      {imageDetail?.title || (
+                        <span className="text-gray-600 italic">No title — click Edit to add one</span>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Type row */}
-                  <div className="flex items-start gap-2">
-                    <Tag className="w-3.5 h-3.5 text-gray-500 mt-0.5 shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Type</p>
-                      {types.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {types.map((t) => {
-                            const style = PERSON_TYPE_STYLES[t] ?? "bg-gray-500/15 text-gray-400 border-gray-500/25";
-                            return (
-                              <span key={t} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${style}`}>
-                                {t}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-600">—</span>
-                      )}
-                    </div>
-                  </div>
+                    </p>
+                  )}
                 </div>
-              );
-            })()}
+
+                {/* ── Caption ── */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Caption</p>
+                  {editingInfo ? (
+                    <textarea
+                      value={draftCaption}
+                      onChange={(e) => setDraftCaption(e.target.value)}
+                      placeholder="Add an editorial caption or description…"
+                      rows={3}
+                      className="w-full px-2 py-1 rounded bg-brand-navy border border-surface-border text-white text-xs placeholder-gray-600 focus:outline-none focus:border-brand-gold/50 resize-none"
+                    />
+                  ) : (
+                    <p className="text-xs text-white whitespace-pre-wrap">
+                      {imageDetail?.caption || (
+                        <span className="text-gray-600 italic">No caption</span>
+                      )}
+                    </p>
+                  )}
+                </div>
+
+                {/* ── Manual tags ── */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Tags</p>
+                  {editingInfo ? (
+                    <TagInput
+                      tags={draftTags}
+                      suggestions={metadata?.semantic_tags ?? []}
+                      onChange={setDraftTags}
+                    />
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(imageDetail?.manual_tags ?? []).length > 0 ? (
+                        (imageDetail?.manual_tags ?? []).map((tag) => (
+                          <span
+                            key={tag}
+                            className="px-2.5 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold border border-brand-gold/20 text-xs font-medium"
+                          >
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-600 italic">No tags</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-surface-border pt-2 space-y-2.5">
+                  {/* Source row */}
+                  {(() => {
+                    const persons = metadata?.persons ?? [];
+                    const sources = Array.from(new Set(persons.map((p) => p.source).filter(Boolean))) as string[];
+                    const types   = Array.from(new Set(persons.map((p) => p.person_type).filter(Boolean))) as string[];
+                    return (
+                      <>
+                        <div className="flex items-start gap-2">
+                          <Radio className="w-3.5 h-3.5 text-gray-500 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Source</p>
+                            {sources.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {sources.map((src) => {
+                                  const style = SOURCE_STYLES[src] ?? "bg-gray-500/10 text-gray-400 border-gray-500/20";
+                                  return (
+                                    <span key={src} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${style}`}>
+                                      {src}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-600">—</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Tag className="w-3.5 h-3.5 text-gray-500 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Type</p>
+                            {types.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {types.map((t) => {
+                                  const style = PERSON_TYPE_STYLES[t] ?? "bg-gray-500/15 text-gray-400 border-gray-500/25";
+                                  return (
+                                    <span key={t} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${style}`}>
+                                      {t}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-600">—</span>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── People card ──────────────────────────────────────────── */}
