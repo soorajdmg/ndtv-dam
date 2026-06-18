@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, ChevronDown, Plus, X } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, X, Building2 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { listOrganizations, createOrganization } from "@/lib/api";
