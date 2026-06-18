@@ -174,7 +174,7 @@ export const reassignPersonInImage = (imageId: string, oldPersonId: string, newP
 export const uploadReferencePhoto = async (
   personId: string,
   file: File,
-): Promise<{ message: string; person_id: string; detection_confidence: number; faces_detected: number }> => {
+): Promise<{ message: string; person_id: string; task_id: string }> => {
   const formData = new FormData();
   formData.append("file", file);
   const refToken = getStoredToken();

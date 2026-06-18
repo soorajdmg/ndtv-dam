@@ -247,13 +247,11 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
 
   async function uploadThumbAsReference(personId: string) {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    try {
-      const res = await fetch(`${apiBase}/api/images/${imageId}/thumbnail`);
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const file = new File([blob], "reference.jpg", { type: "image/jpeg" });
-      await uploadReferencePhoto(personId, file);
-    } catch { /* non-fatal */ }
+    const res = await fetch(`${apiBase}/api/images/${imageId}/thumbnail`);
+    if (!res.ok) throw new Error(`Failed to fetch thumbnail (${res.status})`);
+    const blob = await res.blob();
+    const file = new File([blob], "reference.jpg", { type: blob.type || "image/jpeg" });
+    await uploadReferencePhoto(personId, file);
   }
 
   async function handleLink(personId: string, personName: string, hasEmbedding: boolean) {
@@ -262,7 +260,11 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
       await linkPersonToImage(imageId, personId);
       // Upload reference photo only if the person has no embedding yet
       if (!hasEmbedding) {
-        await uploadThumbAsReference(personId);
+        try {
+          await uploadThumbAsReference(personId);
+        } catch {
+          toast("Reference photo upload failed — face recognition won't be trained for this person.", { icon: "⚠️" });
+        }
       }
       toast.success(`${personName} linked to this image`);
       onDone();
@@ -283,7 +285,11 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
         designation: form.designation.trim() || undefined,
         organization: form.organization.trim() || undefined,
       });
-      await uploadThumbAsReference(person.id);
+      try {
+        await uploadThumbAsReference(person.id);
+      } catch {
+        toast("Reference photo upload failed — face recognition won't be trained for this person.", { icon: "⚠️" });
+      }
       await linkPersonToImage(imageId, person.id);
       toast.success(`${person.full_name} linked to this image`);
       onDone();
@@ -491,13 +497,16 @@ function PersonReassignForm({ imageId, currentPersonId, orgs, onOrgCreated, onDo
         designation: newForm.designation.trim() || undefined,
         organization: newForm.organization.trim() || undefined,
       });
-      // 2. Use current image as their reference photo (best-effort)
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-      const thumbRes = await fetch(`${apiBase}/api/images/${imageId}/thumbnail`);
-      if (thumbRes.ok) {
+      // 2. Use current image as their reference photo
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+        const thumbRes = await fetch(`${apiBase}/api/images/${imageId}/thumbnail`);
+        if (!thumbRes.ok) throw new Error(`Thumbnail fetch failed (${thumbRes.status})`);
         const blob = await thumbRes.blob();
-        const file = new File([blob], "reference.jpg", { type: blob.type });
-        try { await uploadReferencePhoto(created.id, file); } catch { /* non-fatal */ }
+        const file = new File([blob], "reference.jpg", { type: blob.type || "image/jpeg" });
+        await uploadReferencePhoto(created.id, file);
+      } catch {
+        toast("Reference photo upload failed — face recognition won't be trained for this person.", { icon: "⚠️" });
       }
       // 3. Reassign only this image to the new person
       const { reassignPersonInImage } = await import("@/lib/api");
