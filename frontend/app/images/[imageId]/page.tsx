@@ -13,7 +13,7 @@ import {
   getImageDetail,
   updateImageMetadata,
   createPerson,
-  uploadReferencePhoto,
+  uploadImageAsReferencePhoto,
   listOrganizations,
   createOrganization,
   listPersons,
@@ -245,15 +245,6 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
   });
   const [saving, setSaving] = useState(false);
 
-  async function uploadThumbAsReference(personId: string) {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    const res = await fetch(`${apiBase}/api/images/${imageId}/thumbnail`);
-    if (!res.ok) throw new Error(`Failed to fetch thumbnail (${res.status})`);
-    const blob = await res.blob();
-    const file = new File([blob], "reference.jpg", { type: blob.type || "image/jpeg" });
-    await uploadReferencePhoto(personId, file);
-  }
-
   async function handleLink(personId: string, personName: string, hasEmbedding: boolean) {
     setLinking(true);
     try {
@@ -261,8 +252,9 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
       // Upload reference photo only if the person has no embedding yet
       if (!hasEmbedding) {
         try {
-          await uploadThumbAsReference(personId);
-        } catch {
+          await uploadImageAsReferencePhoto(personId, imageId);
+        } catch (refErr) {
+          console.error("[uploadImageAsReferencePhoto] failed:", refErr);
           toast("Reference photo upload failed — face recognition won't be trained for this person.", { icon: "⚠️" });
         }
       }
@@ -286,8 +278,9 @@ function AddPersonForm({ imageId, orgs, onOrgCreated, onDone }: AddPersonFormPro
         organization: form.organization.trim() || undefined,
       });
       try {
-        await uploadThumbAsReference(person.id);
-      } catch {
+        await uploadImageAsReferencePhoto(person.id, imageId);
+      } catch (refErr) {
+        console.error("[uploadImageAsReferencePhoto] failed:", refErr);
         toast("Reference photo upload failed — face recognition won't be trained for this person.", { icon: "⚠️" });
       }
       await linkPersonToImage(imageId, person.id);
@@ -499,13 +492,9 @@ function PersonReassignForm({ imageId, currentPersonId, orgs, onOrgCreated, onDo
       });
       // 2. Use current image as their reference photo
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-        const thumbRes = await fetch(`${apiBase}/api/images/${imageId}/thumbnail`);
-        if (!thumbRes.ok) throw new Error(`Thumbnail fetch failed (${thumbRes.status})`);
-        const blob = await thumbRes.blob();
-        const file = new File([blob], "reference.jpg", { type: blob.type || "image/jpeg" });
-        await uploadReferencePhoto(created.id, file);
-      } catch {
+        await uploadImageAsReferencePhoto(created.id, imageId);
+      } catch (refErr) {
+        console.error("[uploadImageAsReferencePhoto] failed:", refErr);
         toast("Reference photo upload failed — face recognition won't be trained for this person.", { icon: "⚠️" });
       }
       // 3. Reassign only this image to the new person
@@ -892,7 +881,10 @@ export default function ImageDetailPage() {
     try {
       await deleteImage(imageId);
       toast.success("Image deleted");
-      queryClient.invalidateQueries({ queryKey: ["images"] });
+      // Invalidate all image list and search queries so the dashboard
+      // immediately reflects the deletion without waiting for staleTime.
+      queryClient.removeQueries({ queryKey: ["images-list"] });
+      queryClient.removeQueries({ queryKey: ["dashboard-search"] });
       router.push("/");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete image");

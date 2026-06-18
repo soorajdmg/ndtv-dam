@@ -402,7 +402,10 @@ async def get_image_thumbnail(
     return StreamingResponse(
         buf,
         media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=86400"},
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            "Access-Control-Allow-Origin": "*",
+        },
     )
 
 
@@ -441,7 +444,7 @@ async def get_face_crop(
     buf = io.BytesIO()
     crop.save(buf, format="JPEG", quality=85)
     buf.seek(0)
-    return StreamingResponse(buf, media_type="image/jpeg")
+    return StreamingResponse(buf, media_type="image/jpeg", headers={"Access-Control-Allow-Origin": "*"})
 
 
 async def _delete_image_files(img: Image, variants: list, settings: Settings) -> None:

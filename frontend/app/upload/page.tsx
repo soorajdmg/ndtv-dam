@@ -1,21 +1,27 @@
 "use client";
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Upload, X, FileImage, AlertCircle } from "lucide-react";
-import { uploadBatch } from "@/lib/api";
+import { uploadBatch, getBatchImages } from "@/lib/api";
 import { formatBytes, cn } from "@/lib/utils";
+import { BatchProcessingPanel } from "@/components/BatchProcessingPanel";
 
 const ACCEPTED_TYPES = { "image/jpeg": [], "image/png": [], "image/webp": [] };
 const MAX_SIZE = 20 * 1024 * 1024;
 
+interface ActiveBatch {
+  batchId: string;
+  totalQueued: number;
+  redirectOnComplete: string;
+}
+
 export default function UploadPage() {
-  const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
+  const [activeBatches, setActiveBatches] = useState<ActiveBatch[]>([]);
 
   const onDrop = useCallback((accepted: File[], rejected: any[]) => {
     const newErrors: string[] = [];
@@ -43,16 +49,40 @@ export default function UploadPage() {
     setProgress(0);
     try {
       const response = await uploadBatch(files, undefined, setProgress);
-      toast.success(`Batch uploaded! ${response.queued_images} images queued.`);
       if (response.rejected_files.length) {
         toast.error(`${response.rejected_files.length} files rejected.`);
       }
-      router.push(`/batches/${response.batch_id}`);
+      // Single image → redirect to image detail once processed.
+      // Multiple images → redirect to the batch page.
+      let redirectOnComplete = `/batches/${response.batch_id}`;
+      if (response.queued_images === 1) {
+        // Fetch the image ID now — it's already created in the DB at this point
+        try {
+          const batchImages = await getBatchImages(response.batch_id, 1, 1);
+          if (batchImages.items.length > 0) {
+            redirectOnComplete = `/images/${batchImages.items[0].id}`;
+          }
+        } catch {
+          // Fall back to batch page if fetch fails
+        }
+      }
+      setActiveBatches((prev) => [
+        { batchId: response.batch_id, totalQueued: response.queued_images, redirectOnComplete },
+        ...prev,
+      ]);
+      // Reset the upload form so the user can immediately queue another batch
+      setFiles([]);
+      setErrors([]);
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
     } finally {
       setUploading(false);
+      setProgress(0);
     }
+  };
+
+  const dismissBatch = (batchId: string) => {
+    setActiveBatches((prev) => prev.filter((b) => b.batchId !== batchId));
   };
 
   return (
@@ -151,6 +181,24 @@ export default function UploadPage() {
       >
         {uploading ? "Uploading..." : `Upload ${files.length} ${files.length === 1 ? "Image" : "Images"}`}
       </button>
+
+      {/* Inline batch processing panels */}
+      {activeBatches.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+            {activeBatches.length === 1 ? "Active batch" : `Active batches (${activeBatches.length})`}
+          </p>
+          {activeBatches.map((b) => (
+            <BatchProcessingPanel
+              key={b.batchId}
+              batchId={b.batchId}
+              totalQueued={b.totalQueued}
+              onDismiss={() => dismissBatch(b.batchId)}
+              redirectOnComplete={b.redirectOnComplete}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

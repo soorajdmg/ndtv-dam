@@ -1,13 +1,12 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   SlidersHorizontal,
   LayoutGrid,
   List,
   GalleryThumbnails,
-  ArrowUpDown,
   Upload,
   X,
   ChevronLeft,
@@ -17,13 +16,10 @@ import {
   Loader2,
   Image as ImageIcon,
   Filter,
-  CheckCircle2,
-  Clock,
   User,
   ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import toast from "react-hot-toast";
 import {
@@ -34,6 +30,7 @@ import {
 } from "@/lib/api";
 import { cn, formatBytes } from "@/lib/utils";
 import { StatusBadge } from "@/components/StatusBadge";
+import { BatchProcessingPanel } from "@/components/BatchProcessingPanel";
 import type { ImageListItem } from "@/lib/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -247,19 +244,23 @@ function GalleryCard({
 
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
 
+interface ActiveBatch {
+  batchId: string;
+  totalQueued: number;
+}
+
 function UploadModal({
   open,
   onClose,
-  onSuccess,
 }: {
   open: boolean;
   onClose: () => void;
-  onSuccess: (batchId: string) => void;
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
+  const [activeBatches, setActiveBatches] = useState<ActiveBatch[]>([]);
 
   const onDrop = useCallback((accepted: File[], rejected: any[]) => {
     const newErrors: string[] = [];
@@ -283,17 +284,21 @@ function UploadModal({
     setProgress(0);
     try {
       const response = await uploadBatch(files, undefined, setProgress);
-      toast.success(`Batch uploaded! ${response.queued_images} images queued.`);
       if (response.rejected_files.length) {
         toast.error(`${response.rejected_files.length} files rejected.`);
       }
+      // Keep modal open, show processing panel inside it
+      setActiveBatches((prev) => [
+        { batchId: response.batch_id, totalQueued: response.queued_images },
+        ...prev,
+      ]);
       setFiles([]);
       setErrors([]);
-      onSuccess(response.batch_id);
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
     } finally {
       setUploading(false);
+      setProgress(0);
     }
   };
 
@@ -302,7 +307,14 @@ function UploadModal({
     setFiles([]);
     setErrors([]);
     setProgress(0);
+    // Don't wipe activeBatches on close — user may reopen to check progress
     onClose();
+  };
+
+  // Reset batches when modal is reopened fresh (no active batches)
+  // but preserve them while open
+  const dismissBatch = (batchId: string) => {
+    setActiveBatches((prev) => prev.filter((b) => b.batchId !== batchId));
   };
 
   if (!open) return null;
@@ -315,9 +327,9 @@ function UploadModal({
         onClick={handleClose}
       />
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-lg mx-4 rounded-2xl border border-surface-border bg-surface-card shadow-2xl">
+      <div className="relative z-10 w-full max-w-lg mx-4 rounded-2xl border border-surface-border bg-surface-card shadow-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border shrink-0">
           <div>
             <h2 className="text-base font-semibold text-white">Upload Images</h2>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -333,7 +345,7 @@ function UploadModal({
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           {/* Drop Zone */}
           <div
             {...getRootProps()}
@@ -378,7 +390,7 @@ function UploadModal({
                   Clear all
                 </button>
               </div>
-              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                 {files.map((file, i) => (
                   <div
                     key={i}
@@ -405,7 +417,7 @@ function UploadModal({
             </div>
           )}
 
-          {/* Progress */}
+          {/* Upload progress bar */}
           {uploading && (
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs text-gray-400">
@@ -433,6 +445,23 @@ function UploadModal({
               ? `Upload ${files.length} ${files.length === 1 ? "Image" : "Images"}`
               : "Select images to upload"}
           </button>
+
+          {/* Inline batch processing panels */}
+          {activeBatches.length > 0 && (
+            <div className="space-y-3 pt-1">
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                {activeBatches.length === 1 ? "Processing" : `Processing (${activeBatches.length} batches)`}
+              </p>
+              {activeBatches.map((b) => (
+                <BatchProcessingPanel
+                  key={b.batchId}
+                  batchId={b.batchId}
+                  totalQueued={b.totalQueued}
+                  onDismiss={() => dismissBatch(b.batchId)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -481,39 +510,6 @@ function PersonDropdown({
           </div>
         </button>
       ))}
-    </div>
-  );
-}
-
-// ─── Active batch banner ──────────────────────────────────────────────────────
-
-function ActiveBatchBanner({
-  batchId,
-  onDismiss,
-}: {
-  batchId: string;
-  onDismiss: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-brand-gold/30 bg-brand-gold/10">
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <Clock className="w-4 h-4 text-brand-gold shrink-0 animate-pulse" />
-        <p className="text-sm text-white">
-          Batch processing started.{" "}
-          <Link
-            href={`/batches/${batchId}`}
-            className="text-brand-gold underline underline-offset-2 hover:text-brand-gold-light"
-          >
-            Track progress →
-          </Link>
-        </p>
-      </div>
-      <button
-        onClick={onDismiss}
-        className="p-1 text-gray-400 hover:text-white transition-colors shrink-0"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
     </div>
   );
 }
@@ -610,7 +606,6 @@ export default function DashboardPage() {
 
   // Upload modal
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
 
   // ── Close person dropdown when clicking outside ──
   useEffect(() => {
@@ -717,11 +712,6 @@ export default function DashboardPage() {
     setPage(1);
   }
 
-  function handleUploadSuccess(batchId: string) {
-    setUploadOpen(false);
-    setActiveBatchId(batchId);
-  }
-
   return (
     <div className="p-6 space-y-5">
       {/* ── Header ── */}
@@ -743,14 +733,6 @@ export default function DashboardPage() {
           Upload
         </button>
       </div>
-
-      {/* ── Active batch banner ── */}
-      {activeBatchId && (
-        <ActiveBatchBanner
-          batchId={activeBatchId}
-          onDismiss={() => setActiveBatchId(null)}
-        />
-      )}
 
       {/* ── Toolbar ── */}
       <div className="space-y-3">
@@ -992,7 +974,6 @@ export default function DashboardPage() {
       <UploadModal
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        onSuccess={handleUploadSuccess}
       />
     </div>
   );

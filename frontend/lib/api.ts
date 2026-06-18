@@ -190,6 +190,39 @@ export const uploadReferencePhoto = async (
   return res.json();
 };
 
+/**
+ * Fetches the image thumbnail from the backend and uploads it as the
+ * reference photo for a person — both requests use BASE_URL with the auth
+ * token, so there are no CORS issues.
+ */
+export const uploadImageAsReferencePhoto = async (
+  personId: string,
+  imageId: string,
+): Promise<void> => {
+  const token = getStoredToken();
+  const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const thumbRes = await fetch(`${BASE_URL}/api/images/${imageId}/thumbnail`, {
+    headers: authHeaders,
+  });
+  if (!thumbRes.ok) throw new Error(`Thumbnail fetch failed (${thumbRes.status})`);
+
+  const blob = await thumbRes.blob();
+  const file = new File([blob], "reference.jpg", { type: blob.type || "image/jpeg" });
+
+  const formData = new FormData();
+  formData.append("file", file);
+  const uploadRes = await fetch(`${BASE_URL}/api/persons/${personId}/reference-photo`, {
+    method: "POST",
+    headers: authHeaders,
+    body: formData,
+  });
+  if (!uploadRes.ok) {
+    const body = await uploadRes.text();
+    throw new Error(`Reference photo upload failed (${uploadRes.status}): ${body}`);
+  }
+};
+
 // ─── Organizations ────────────────────────────────────────────────────────────
 export const listOrganizations = () => apiFetch<Organization[]>("/api/organizations");
 
