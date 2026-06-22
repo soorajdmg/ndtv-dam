@@ -1,0 +1,51 @@
+# Python bytecode — stale .pyc files can cause duplicate Alembic revision errors
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Development secrets
+.env
+.env.local
+backend/.env.local-worker
+*.env.production
+*.env.local-worker
+
+# Local data / uploads
+data/
+uploads/
+qdrant_storage/
+
+# ML model weights (downloaded at runtime or not needed in API image)
+*.onnx
+*.pt
+*.pth
+.cache/
+
+# Node.js
+node_modules/
+frontend/.next/
+frontend/out/
+
+# Test artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
